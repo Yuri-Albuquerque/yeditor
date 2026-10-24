@@ -204,3 +204,17 @@ Run `sbcl --script scripts/run-yeditor-claude-worker-tests.lisp` for the fake CL
 cancellation, active-task removal and 100 registration/removal cycles. These tests
 need Python 3; they use no credentials or real Claude CLI. The worker architecture
 is the amended T17 design described above, rather than a second standalone chat panel.
+
+### T18 validation follow-up
+
+Forge validation now restricts generated names to local identifiers, validates
+metadata as data and checks lambda argument lists before evaluation. Rejecting a
+duplicate name preserves the existing component. Promotion refuses to overwrite
+existing source and converts evaluation/persistence errors to discard results.
+The default reversibility check runs 100 cycles. Model generation runs on a worker;
+validation, editor mutations and promotion return through the UI event queue.
+
+`sbcl --script scripts/run-yeditor-forge-tests.lisp` runs deterministic validation,
+persistence and thread-dispatch regressions. The enterprise suite additionally
+contains a fake HTTP Ollama integration for valid/invalid generated components.
+These are constrained in-process checks, not operating-system isolation.
