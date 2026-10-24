@@ -5,6 +5,7 @@
 (defpackage :yeditor-enterprise/forge
   (:use :cl :lem :yeditor-context)
   (:import-from :yeditor-components/models #:provider-generate)
+  (:import-from :yeditor-components/palette #:*palette-actions*)
   (:export :forge-component
            :check-component-source
            :forge-rejected
@@ -310,4 +311,8 @@ Request: ~A")
   :version "0.1.0"
   :install (lambda (comp ctx)
              (declare (ignore ctx))
-             (list (yeditor-effects:install-keybinding comp *global-keymap* "C-c a f" (quote yeditor-forge)))))
+             (list (yeditor-effects:install-variable
+                    comp '*palette-actions*
+                    (acons "Create component..." (lambda () (call-command 'yeditor-forge nil))
+                           *palette-actions*))
+                   (yeditor-effects:install-keybinding comp *global-keymap* "C-c a f" (quote yeditor-forge)))))

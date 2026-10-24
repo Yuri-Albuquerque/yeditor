@@ -192,3 +192,11 @@
         (uiop:wait-process process)
         (close (uiop:process-info-output process))
         (uiop:delete-directory-tree *forge-directory* :validate t :if-does-not-exist :ignore)))))
+
+(deftest forge-palette-restores-100-times
+  (let ((before yeditor-components/palette:*palette-actions*))
+    (dotimes (i 100)
+      (install-component 'le-forge)
+      (ok (assoc "Create component..." yeditor-components/palette:*palette-actions* :test #'equal))
+      (uninstall-component 'le-forge)
+      (ok (eq before yeditor-components/palette:*palette-actions*)))))

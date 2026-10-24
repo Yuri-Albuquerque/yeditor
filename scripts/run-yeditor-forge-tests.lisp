@@ -9,6 +9,7 @@
                 yeditor-enterprise-forge-tests::reject-hidden-code-in-lambda-lists
                 yeditor-enterprise-forge-tests::component-names-cannot-be-file-paths
                 yeditor-enterprise-forge-tests::metadata-is-data-and-promotion-never-overwrites
-                yeditor-enterprise-forge-tests::generation-is-async-and-promotion-runs-on-ui))
+                yeditor-enterprise-forge-tests::generation-is-async-and-promotion-runs-on-ui
+                yeditor-enterprise-forge-tests::forge-palette-restores-100-times))
   (unless (rove:run-test test) (uiop:quit 1)))
 (uiop:quit 0)
