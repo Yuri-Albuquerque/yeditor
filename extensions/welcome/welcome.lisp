@@ -7,36 +7,24 @@
 (defvar *enable-welcome* nil)
 
 ;; This parameter is to make sure the content is properly centered in the window
-(defparameter *message-width* 45)
+(defparameter *message-width* 30)
 
 ;; Modify the welcome content (make sure to also change the width if needed)
 (defparameter *message-content* 
 "
-               Welcome to Lem!
-                
-                ,:coodddddoc.             
-           ',;cldddddddddddddolc.         
-        .,';oddddddddddddddddddddo:       
-      ''.,loollooodddddddddddddddddo:     
-    .'.............';:lddddddddddddddo'   
-   '.................   ,ddddddddddddddc  
-  '..................    .Oxddddddddddddc 
- ....................''''oK0xdddddddddddd,
-................,ldOKKKKKKKK0xdddxx:,,''',
-..............ckKKKKKKKKKKKKK0kO0KKo.     
-............'kKKKKKKKKKKKKKKKKKKKKKKKKo   
-...........'xdl:;;:O000:                  
-.................'k0000:                  
- ...............'k000000                  
- ...............xKKKKKKKk                 
-  .............'KKKKKKKKKO'               
-   ............,KKKKKKKKKKKko.     .      
-    ............xKKKKKKKKKKKKK0OkO;       
-      ...........dKKKKKKKKKKKKK;          
-         .........,lkKKKKKKK0.            
-           ...........;xKKKKK0            
-                ...';ckKKKKKK0            
-                    .lOKx'                ")
+     [  Welcome to Yeditor!  ]
+
+       ##            ##
+        ##          ##
+         ##        ##
+          ##      ##
+           ##    ##
+            ##  ##
+           (%%%%)
+             %%
+             %%
+             %%
+             %%")
 
 (defun display-welcome ()
   (when *enable-welcome*

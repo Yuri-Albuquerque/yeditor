@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Yeditor: estilingue em Y -->
+  <rect x="32" y="32" width="960" height="960" rx="225" fill="#171A2E"/>
+  <g stroke="#FFB84C" stroke-width="84" stroke-linecap="round">
+    <path d="M512 788 L512 563" fill="none"/>
+    <path d="M512 563 L338 400" fill="none"/>
+    <path d="M512 563 L686 400" fill="none"/>
+  </g>
+  <g stroke="#FF5D5D" stroke-width="30" fill="none" stroke-linecap="round">
+    <path d="M338 400 Q 405 500 512 513"/>
+    <path d="M686 400 Q 619 500 512 513"/>
+  </g>
+  <rect x="480" y="480" width="64" height="48" rx="20" fill="#8E5A2B"/>
+  <circle cx="512" cy="513" r="23" fill="#EAF0FF"/>
+</svg>
