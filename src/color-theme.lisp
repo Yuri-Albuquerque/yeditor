@@ -145,6 +145,11 @@ for example, to maintain an attribute like CURSOR.")
      color)))
 
 (defun initialize-color-theme ()
-  (load-theme (config :color-theme "lem-default") nil))
+  ;; A saved config can contain an explicit :(color-theme nil) (e.g. a
+  ;; theme command that persisted an unset choice); `getf' finds the
+  ;; key and returns nil, ignoring the default.  `load-theme' errors
+  ;; on nil and *after-init-hook* failures abort the argument
+  ;; processing, so files passed on the command line never open.
+  (load-theme (or (config :color-theme) "lem-default") nil))
 
 (add-hook *after-init-hook* 'initialize-color-theme)
