@@ -68,19 +68,19 @@ yeditor/
 ├── frontends/               # ncurses / webview / SDL2 (L0)
 ├── contrib/                 # inherited, load on demand
 ├── yeditor/                 # NEW: Yeditor packages (L1-L5)
-│   ├── core.lisp, package.lisp
-│   ├── tx/                  # (T1+) transactional core yeditor-tx
-│   ├── effects/             # (T4+) standard inverses
-│   ├── components/          # (Phase 2) le-* components
-│   ├── forge/               # (T18) generative agent
-│   └── tests/               # unit + property tests
+│   ├── core/                # [FSL-1.1-MIT] L1-L3: yeditor-core.asd, package, version
+│   │   ├── tx/              #   yeditor-tx: transactions, inverses, side-transactions
+│   │   └── context/         #   yeditor-context: registry, reactivity, loader, durability
+│   ├── effects/             # [FSL-1.1-MIT] L1: standard effects (buffer, mode, hook, ...)
+│   ├── components/          # [FSL-1.1-MIT] L3: le-* components (Phase 2)
+│   └── enterprise/          # [Proprietary] L4-L5: journal, agent/, forge/
 ├── docs/                    # EN docs (arch.md, component-author.md, ...)
 ├── tests/                   # inherited
 ├── lem.asd, yeditor.asd
 ├── Makefile, qlfile, qlfile.lock
 ├── README.md + README.pt-BR.md
 ├── .yeditor.lisp
-├── CONTRIBUTING.md, LICENSE, LICENCE (upstream MIT)
+├── LICENSE (license map), LICENSE-FSL, LICENSE-ENTERPRISE, THIRD_PARTY_NOTICES.md (Lem MIT), CLA.md
 └── .github/workflows/       # test.yml (rove tests) + yeditor-ci.yml (Nix builds)
 ```
 
@@ -91,3 +91,84 @@ current upstream layout — language modes live under `src/ext/` and
 ## Layer dependency rule
 
 each layer uses only lower layers; no L5/L4/L3 component touches L0 directly - always via L1/L2.
+
+## Dark/light theme component
+
+`yeditor-components:le-dark-theme` mounts the warm Gruvbox Soft dark theme and
+adds **Theme: dark** / **Theme: light** to the theme palette, alongside the
+previous theme source. The light variant ports Lem's `emacs-light` with warm
+paper/ink colors instead of pure black/white. The standard ephemeral UI installs
+this component automatically after the ergonomic pack.
+
+Focus a palette item to preview it; accept to save its canonical Lem theme name,
+or cancel to restore the previous theme. Removing `le-dark-theme` restores the
+mount-time theme, palette source and aliases through transaction effects; remove
+it before the underlying ergonomic pack (LIFO). The existing palette command
+`yeditor-palette-theme` is also available through the editor's MCP command tool.
+
+The component suite checks 200 dark/light install/preview/accept/uninstall cycles
+against color and style snapshots, plus restoration of the palette variables.
+
+## Composable mode-line and tabs
+
+`le-mode-line-minimal` owns the mode-line format and adds palette actions for
+buffer, mode, Git change count, diagnostics, position, and tabs. Each segment is
+an independent `le-mode-line-*` component; accepting its palette item toggles
+it, while preview/cancel leaves it unchanged. The standard workspace enables
+buffer name and position. `le-tabs` is off by default and uses Lem's existing
+frame multiplexer when enabled.
+
+Git shows the cached gutter change count when available (enable the inherited
+Git gutter to populate it); diagnostics uses the existing LSP diagnostic list.
+Neither segment launches external work during redisplay. Segment removal
+restores its own flag independently of other segments; removing the mode-line
+component restores the previous format and palette actions.
+
+## Project-scoped language servers
+
+`le-lsp` tracks sessions by language and project root (the root markers from
+Lem's language specification). Files in the same project share a server;
+projects using the same language have separate workspaces and document routing.
+Stopping a project removes its acquired buffer hooks and cancels pending
+initialization callbacks. Removing the component stops all owned servers while
+preserving externally owned servers and hooks.
+
+With `le-lsp` enabled, the appearance palette offers **LSP: start for this
+project** and **LSP: stop for this project**. The mode-line reflects the current
+buffer's attached session. The commands `yeditor-lsp-start`, `yeditor-lsp-stop`
+and `yeditor-lsp-stop-all` also work through the existing MCP editor command
+interface. The start command enables the component when needed.
+
+A missing executable prompts **Install LSP? Show setup instructions**, offering
+the install command and documentation configured by the language specification.
+Accepting displays guidance; installing packages remains an explicit user action.
+
+Run `sbcl --script scripts/run-yeditor-lsp-tests.lisp` for the stdio integration
+and effect regressions. The fixture creates two temporary Python projects and
+a shell launcher named `pyright`, verifies both initialize roots, and checks
+100 start/stop/uninstall cycles against buffer/hook/palette baselines. It needs
+Python 3, but no real pyright or external service.
+
+## Local package onboarding
+
+The standard appearance palette includes **Install package...** and **Remove
+package...**, owned by `le-package-onboarding`. Discovery includes configured
+`*package-roots*`, `~/common-lisp`, and the active Quicklisp installation's local
+project directories (including Qlot installations). Scanning and package work run
+in a worker; prompts and completion messages return through the UI event queue.
+Only one onboarding operation runs at a time.
+
+Before loading code, the installer explains partial reversibility and asks for
+confirmation. Uninstall removes acquired Lisp packages and newly loaded ASDF
+systems; definitions or side effects made in existing packages can remain until
+restart. It is not a sandbox or a general Lisp unloader. Existing source registry
+entries and preloaded packages are preserved. Failed loads clean up newly acquired
+packages/system registrations before rolling back the source registry effect.
+
+The existing MCP command interface exposes `yeditor-install-package` and
+`yeditor-uninstall-package`. Programmatic `install-package`/`uninstall-package`
+remain synchronous; their UI commands dispatch work to the worker.
+
+Run `sbcl --script scripts/run-yeditor-package-tests.lisp` for local Quicklisp
+fixtures, 100 install/remove cycles with journal assertions, palette restoration,
+repeat installation, failure cleanup, cancellation and worker dispatch checks.
