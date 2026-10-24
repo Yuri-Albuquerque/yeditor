@@ -89,29 +89,44 @@
   (handle-key-up (get-platform) key-event))
 
 (defun on-windowevent (display event)
-  (alexandria:switch (event)
-    (sdl2-ffi:+sdl-windowevent-shown+
-     (display:notify-required-redisplay display))
-    (sdl2-ffi:+sdl-windowevent-exposed+
-     (display:notify-required-redisplay display))
-    (sdl2-ffi:+sdl-windowevent-resized+
-     (display:update-texture display)
-     (display:notify-required-redisplay display))
-    ;; SDL fires :size-changed on backing-pixel-size changes that do not
-    ;; correspond to a user resize — most notably when the window moves
-    ;; between displays with different DPI (Retina ↔ standard).  Re-derive
-    ;; the high-DPI scale, re-open the font, and resize the backing texture.
-    (sdl2-ffi:+sdl-windowevent-size-changed+
-     (display:handle-display-changed display))
-    ;; SDL ≥ 2.0.18 fires :display-changed when the window is dragged onto
-    ;; a different monitor.  On older SDL builds this constant is still
-    ;; defined by the FFI binding but the event simply never fires.
-    (sdl2-ffi:+sdl-windowevent-display-changed+
-     (display:handle-display-changed display))
-    (sdl2-ffi:+sdl-windowevent-focus-gained+
-     (setf (display:display-focus-p display) t))
-    (sdl2-ffi:+sdl-windowevent-focus-lost+
-     (setf (display:display-focus-p display) nil))))
+  ;; An SDL window event can arrive while the editor thread is still
+  ;; booting (the window is mapped and the event loop pumps events
+  ;; before `setup-first-frame' has finished building the first
+  ;; frame).  An error in a handler previously crashed the main thread
+  ;; inside the debugger's own error handling, hiding the primary
+  ;; error behind "nested error ... exiting" and leaving a black
+  ;; window.  Keep the loop alive and record the condition and
+  ;; backtrace in the error log instead.
+  (handler-case
+      (alexandria:switch (event)
+        (sdl2-ffi:+sdl-windowevent-shown+
+         (display:notify-required-redisplay display))
+        (sdl2-ffi:+sdl-windowevent-exposed+
+         (display:notify-required-redisplay display))
+        (sdl2-ffi:+sdl-windowevent-resized+
+         (display:update-texture display)
+         (display:notify-required-redisplay display))
+        ;; SDL fires :size-changed on backing-pixel-size changes that do not
+        ;; correspond to a user resize — most notably when the window moves
+        ;; between displays with different DPI (Retina ↔ standard).  Re-derive
+        ;; the high-DPI scale, re-open the font, and resize the backing texture.
+        (sdl2-ffi:+sdl-windowevent-size-changed+
+         (display:handle-display-changed display))
+        ;; SDL ≥ 2.0.18 fires :display-changed when the window is dragged onto
+        ;; a different monitor.  On older SDL builds this constant is still
+        ;; defined by the FFI binding but the event simply never fires.
+        (sdl2-ffi:+sdl-windowevent-display-changed+
+         (display:handle-display-changed display))
+        (sdl2-ffi:+sdl-windowevent-focus-gained+
+         (setf (display:display-focus-p display) t))
+        (sdl2-ffi:+sdl-windowevent-focus-lost+
+         (setf (display:display-focus-p display) nil)))
+    (error (e)
+      (do-log
+       (with-output-to-string (out)
+         (format out "=== SDL windowevent ~A handler error ===~%~A~%"
+                 event e)
+         (sb-debug:print-backtrace :condition e :stream out))))))
 
 (defun on-filedrop (file)
   (lem:send-event (lambda () (lem:find-file file))))
@@ -160,7 +175,7 @@
                 (char-height (font-char-height font))
                 (window-width (* +display-width+ char-width))
                 (window-height (* +display-height+ char-height)))
-           (sdl2:with-window (window :title "Lem"
+           (sdl2:with-window (window :title "Yeditor"
                                      :w window-width
                                      :h window-height
                                      :flags '(:shown :resizable :allow-highdpi))

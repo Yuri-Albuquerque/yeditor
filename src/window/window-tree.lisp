@@ -32,11 +32,16 @@
   (windowp window))
 
 (defun window-tree-map (tree fn)
+  ;; A tree may not be initialized yet when SDL display-change events
+  ;; arrive during early startup (post-display-change hooks run
+  ;; refresh-all-view-textures before the editor builds the window
+  ;; tree); treat a nil tree as an empty tree instead of crashing.
   (labels ((f (tree)
              (if (window-tree-leaf-p tree)
                  (funcall fn tree)
                  (map nil #'f (window-node-children tree)))))
-    (f tree)
+    (unless (null tree)
+      (f tree))
     nil))
 
 (defun window-tree-flatten (tree)
@@ -60,15 +65,18 @@
 
 (defun find-node-with-window (tree window)
   (labels ((recursive (node)
-             (cond ((typep node 'window) nil)
+             (cond ((null node) nil)
+                   ((typep node 'window) nil)
                    ((find window (window-node-children node))
                     node)
                    (t
                     (some #'recursive (window-node-children node))))))
-    (recursive tree)))
+    (when tree
+      (recursive tree))))
 
 (defun get-parent-window-node-accessors (tree node)
-  (cond ((window-tree-leaf-p tree) nil)
+  (cond ((null tree) nil)
+        ((window-tree-leaf-p tree) nil)
         ((eq node (window-node-left tree))
          (values tree
                  (lambda ()
@@ -116,10 +124,12 @@
                    (t
                     (append (join-children node (window-node-left node))
                             (join-children node (window-node-right node)))))))
-    (if (windowp node)
-        node
-        (cons (window-node-split-type node)
-              (rec node)))))
+    (if (null node)
+        nil
+        (if (windowp node)
+            node
+            (cons (window-node-split-type node)
+                  (rec node))))))
 
 (defun balance-windows (&optional (window-tree (window-tree)))
   (labels ((rec (node x y width height)
@@ -173,8 +183,9 @@
                                                          (frame-window-bottom-margin (current-frame))))))
                                          (incf y child-height)
                                          (decf rest-height child-height))))))))))))
-    (rec (convert-window-n-tree window-tree)
-         (topleft-window-x (current-frame))
-         (topleft-window-y (current-frame))
-         (max-window-width (current-frame))
-         (max-window-height (current-frame)))))
+    (unless (null window-tree)
+      (rec (convert-window-n-tree window-tree)
+           (topleft-window-x (current-frame))
+           (topleft-window-y (current-frame))
+           (max-window-width (current-frame))
+           (max-window-height (current-frame))))))
