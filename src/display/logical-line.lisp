@@ -9,7 +9,9 @@
   (t :foreground "#b0b0b0"))
 
 (defgeneric indentation-guide-step (mode buffer)
-  (:documentation "Indentation columns per guide for MODE, or NIL to omit guides.")
+  (:documentation "Indentation columns per guide for MODE, or NIL to omit guides.
+MODE is the buffer's active-modes class instance during redisplay, which
+inherits from every active mode class; specialize on yours.")
   (:method (mode buffer) (declare (ignore mode buffer)) nil))
 
 (defun add-indentation-guides (string attributes step)
@@ -421,8 +423,11 @@ several folds that each hide arbitrary character ranges across multiple buffer l
                     (stable-sort (nreverse virtual-items) #'< :key #'virtual-item-charpos))
               (setf (values string attributes) (expand-tab string attributes tab-width))
               (when (and (not splice-ops) (variable-value 'indentation-guides :default point))
-                (let ((step (some (lambda (mode) (indentation-guide-step mode (point-buffer point)))
-                                  active-modes)))
+                ;; ACTIVE-MODES is the buffer's active-modes class instance (see
+                ;; call-do-logical-line): a single cached dispatch object that
+                ;; inherits from every active mode class, so the step resolves by
+                ;; ordinary CLOS dispatch — the default method yields NIL.
+                (let ((step (indentation-guide-step active-modes (point-buffer point))))
                   (setf (values string attributes) (add-indentation-guides string attributes step))))
               (let ((charpos (point-charpos point)))
                 (when (< 0 charpos)

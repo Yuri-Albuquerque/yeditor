@@ -20,24 +20,29 @@
   (lem-fake-interface:with-fake-interface ()
     (let* ((buffer (current-buffer))
            (point (buffer-start-point buffer))
-           (mode (make-instance 'lem/language-mode:language-mode))
            (before (variable-value 'indentation-guides :global)))
       (insert-string point "        code")
+      (change-buffer-mode buffer 'lem/language-mode:language-mode)
       (setf (variable-value 'lem/language-mode:indent-size :buffer buffer) 4)
       (unwind-protect
            (progn
              (setf (variable-value 'indentation-guides :global) t)
              ;; White-box renderer integration: there is no public logical-line API.
+             ;; call-do-logical-line passes the buffer's active-modes class instance
+             ;; (a single dispatch object), never a list of modes.
              (ok (string= "│   │   code"
                           (lem-core::logical-line-string
-                           (lem-core::create-logical-line point nil (list mode)))))
+                           (lem-core::create-logical-line
+                            point nil (lem-core::get-active-modes-class-instance buffer)))))
+             ;; nil active-modes must stay harmless (no guides, no error).
              (ok (string= "        code"
                           (lem-core::logical-line-string
                            (lem-core::create-logical-line point nil nil))))
              (lem-core::toggle-indentation-guides)
              (ok (string= "        code"
                           (lem-core::logical-line-string
-                           (lem-core::create-logical-line point nil (list mode)))))
+                           (lem-core::create-logical-line
+                            point nil (lem-core::get-active-modes-class-instance buffer)))))
              (ok (string= "        code" (buffer-text buffer))))
         (setf (variable-value 'indentation-guides :global) before)))))
 
