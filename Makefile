@@ -7,24 +7,28 @@ ncurses:
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-ncurses.lisp
+	mv bin/yeditor bin/yeditor-ncurses
 
 # The minimal-build does not include any of the extensions, and uses the ncurses frontend
 minimal-build:
 	qlot install
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-minimal-build.lisp
+	mv bin/yeditor bin/yeditor-minimal
 
 sdl2:
 	qlot install
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-sdl2.lisp
+	mv bin/yeditor bin/yeditor-sdl2
 
 sdl2-ncurses:
 	qlot install
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-sdl2-ncurses.lisp
+	mv bin/yeditor bin/yeditor-sdl2-ncurses
 
 server:
 	qlot install
@@ -41,12 +45,14 @@ webview:
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-webview.lisp
+	mv bin/yeditor bin/yeditor-webview
 
 webview-ncurses:
 	qlot install
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-webview-ncurses.lisp
+	mv bin/yeditor bin/yeditor-webview-ncurses
 
 lem: webview
 
