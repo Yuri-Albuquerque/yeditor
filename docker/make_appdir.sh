@@ -5,16 +5,16 @@ mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/libexec \
          AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
 
 # SBCL dump 実体
-cp bin/lem AppDir/usr/libexec/lem.real
-chmod +x AppDir/usr/libexec/lem.real
+cp bin/yeditor AppDir/usr/libexec/yeditor.real
+chmod +x AppDir/usr/libexec/yeditor.real
 
 # 起動ラッパー（シェル）: 実体を起動するだけ（環境変数の設定は AppRun で行う）
-cat > AppDir/usr/bin/run-lem <<'EOF'
+cat > AppDir/usr/bin/run-yeditor <<'EOF'
 #!/usr/bin/env bash
 APPDIR="${APPDIR:-$(dirname "$(readlink -f "$0")")/..}"
-exec "$APPDIR/usr/libexec/lem.real" "$@"
+exec "$APPDIR/usr/libexec/yeditor.real" "$@"
 EOF
-chmod +x AppDir/usr/bin/run-lem
+chmod +x AppDir/usr/bin/run-yeditor
 
 # 共有ライブラリは usr/lib に
 cp bin/*.so* AppDir/usr/lib/  || true
@@ -32,15 +32,15 @@ if [ ! -f AppDir/usr/lib/terminal.so ]; then
   exit 1
 fi
 
-# .desktop / icon（Exec を run-lem に）
-sed -E 's/^Exec=.*/Exec=run-lem %F/' resources/lem.desktop > AppDir/lem.desktop
-cp resources/lem.png AppDir/lem.png
+# .desktop / icon（Exec を run-yeditor に）
+sed -E 's/^Exec=.*/Exec=run-yeditor %F/' resources/yeditor.desktop > AppDir/yeditor.desktop
+cp resources/yeditor.png AppDir/yeditor.png
 
 # ★ --executable は渡さない！（SBCL 実体を触らせない）
 /usr/local/bin/linuxdeploy-x86_64.AppImage \
   --appdir AppDir \
-  --desktop-file AppDir/lem.desktop \
-  --icon-file   AppDir/lem.png
+  --desktop-file AppDir/yeditor.desktop \
+  --icon-file   AppDir/yeditor.png
 
 # linuxdeploy が作った AppRun（symlink）を自前スクリプトで置き換える
 rm -f AppDir/AppRun
@@ -72,7 +72,7 @@ mods=""
 [ -d /usr/lib/x86_64-linux-gnu/gio/modules ] && mods="${mods:+$mods:}/usr/lib/x86_64-linux-gnu/gio/modules"
 [ -n "$mods" ] && export GIO_EXTRA_MODULES="${mods}${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"
 
-exec "$APPDIR/usr/bin/run-lem" "$@"
+exec "$APPDIR/usr/bin/run-yeditor" "$@"
 EOF
 chmod +x AppDir/AppRun
 

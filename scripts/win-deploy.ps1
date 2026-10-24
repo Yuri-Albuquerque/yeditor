@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 $root     = (Resolve-Path "$PSScriptRoot\..").Path
 $buildDir = Join-Path $root 'build\windows'
 $binDir   = Join-Path $root 'bin'
-$icon     = Join-Path $root 'scripts\install\lem.ico'
+$icon     = Join-Path $root 'scripts\install\yeditor.ico'
 New-Item -ItemType Directory -Force $buildDir | Out-Null
 
 # --- Version (from defsystem "lem" in lem.asd) -------------------------------
@@ -120,9 +120,9 @@ if (-not $iscc) {
 
 if ($isccPath) {
     Write-Host "Building installer..."
-    & $isccPath "/DAppVersion=$version" "/O$buildDir" (Join-Path $root 'scripts\install\lem.iss')
+    & $isccPath "/DAppVersion=$version" "/O$buildDir" (Join-Path $root 'scripts\install\yeditor.iss')
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
-    Write-Host "Installer: $buildDir\Lem-$version-setup.exe"
+    Write-Host "Installer: $buildDir\Yeditor-$version-setup.exe"
 } else {
     Write-Host "Inno Setup not found; skipping installer. Install with:"
     Write-Host "  winget install JRSoftware.InnoSetup"

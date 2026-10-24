@@ -76,7 +76,7 @@ is a no-op. Can be called from any thread."
                         :port port
                         :args args))
                      :name "lem-server")
-    (run-webview :title "Lem"
+    (run-webview :title "Yeditor"
                  :url (format nil "http://127.0.0.1:~D" port)
                  :width 1024
                  :height 768)

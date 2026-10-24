@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Lem
-Exec=lem %F
-Icon=lem
+Name=Yeditor
+Exec=yeditor %F
+Icon=yeditor
 Categories=Utility;TextEditor;
 Terminal=false

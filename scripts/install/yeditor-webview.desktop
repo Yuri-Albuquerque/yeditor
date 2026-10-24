@@ -1,9 +1,9 @@
 [Desktop Entry]
-Name=Lem
+Name=Yeditor
 Comment=Common Lisp editor/IDE with high expansibility
-Exec=/usr/local/bin/lem -i webview %F
+Exec=/usr/local/bin/yeditor -i webview %F
 MimeType=text/english;text/plain;text/x-makefile;text/x-c++hdr;text/x-c++src;application/x-shellscript;text/x-c;text/x-c++;
-Icon=lem
+Icon=yeditor
 Terminal=false
 Type=Application
 Categories=Development;TextEditor;

@@ -32,8 +32,8 @@
   *git-revision*)
 
 (defun get-version-string ()
-  "Return the version number of this version of Lem."
-  (format nil "lem ~A~@[-~A~] (~A-~A)"
+  "Return the version number of this version of Yeditor."
+  (format nil "yeditor ~A~@[-~A~] (~A-~A)"
           *cached-lem-version*
           *git-revision*
           (machine-type)

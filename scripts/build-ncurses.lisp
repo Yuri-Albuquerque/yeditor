@@ -2,6 +2,8 @@
 
 (lem:init-at-build-time)
 
-(sb-ext:save-lisp-and-die "lem"
+(ensure-directories-exist "bin/")
+
+(sb-ext:save-lisp-and-die "bin/yeditor"
                           :toplevel #'lem:main
                           :executable t)

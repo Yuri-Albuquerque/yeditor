@@ -7,7 +7,7 @@
                                     "May your parentheses always be balanced"
                                     "(setf productivity 'high)"
                                     "<M-x> load-library <RET> tetris"
-                                    "Lem Editor Modules? Lisp EMacs? Lem's Not Emacs?"
+                                    "Yeditor! Y for Y! Reversible Effects!"
                                     "(cons 'fun 'programming)"
                                     "Update Instance for Redefined Class"
                                     "[L]ots of [I]rritating [S]uperfluous [P]arenthesis"
@@ -30,35 +30,33 @@
                                     "(eq 'p 'np)?"
                                     "NP Complete!"
                                     "(tagbody 10 (print :hello) (sleep 1) 20 (go 10))"
-                                    "Over 120 Contributors!"
+                                    "Reversible Effects Inside!"
                                     "Symbolic!"
                                     "Alien Technology Inside!"))
 
 (defvar *default-splash* '("
- ----------------------- 
- [   Welcome to Lem!   ] 
- ----------------------- 
+ -----------------------
+ [  Welcome to Yeditor!  ]
+ -----------------------
 
-       #+====-===        
-    ##+-----------=      
-  ########**==------=    
- ##########  %-------=   
-%#########+==-:---=====  
-########:::::::::::+  =  
-######*=++-::::::::::    
-#########=::::           
-%#######*:::::           
- #######+:::::::         
-  %######=:::::::::      
-    #######*-::::        
-       %##*-:::::        
+  ##            ##
+   ##          ##
+    ##        ##
+     ##      ##
+      ##    ##
+       ##  ##
+      (%%%%)
+        %%
+        %%
+        %%
+        %%
 "))
 
-(define-command open-lem-docs () ()
-  (open-external-file "https://lem-project.github.io/usage/usage/"))
+(define-command open-yeditor-docs () ()
+  (open-external-file "https://github.com/Yuri-Albuquerque/yeditor"))
 
-(define-command open-lem-github () ()
-  (open-external-file "https://github.com/lem-project/lem"))
+(define-command open-yeditor-github () ()
+  (open-external-file "https://github.com/Yuri-Albuquerque/yeditor"))
 
 (defun set-default-dashboard (&key 
                               (project-count 5)
@@ -88,7 +86,7 @@
                                :item-attribute 'document-header2-attribute
                                :bottom-margin 1)
                 (make-instance 'dashboard-command
-                               :display-text "⚒ Open Lem Init File (i)"
+                               :display-text "Open Yeditor Init File (i)"
                                :action-command 'lem-core/commands/file:open-init-file
                                :item-attribute 'document-header2-attribute
                                :bottom-margin 2))))
@@ -96,12 +94,12 @@
       (setf dashboard-items
             (append dashboard-items
                     (list (make-instance 'dashboard-url 
-                                         :display-text " Getting Started (s)"
-                                         :url "https://lem-project.github.io/usage/usage/"
+                                         :display-text " Getting Started (s)"
+                                         :url "https://github.com/Yuri-Albuquerque/yeditor"
                                          :item-attribute 'document-header3-attribute)
                           (make-instance 'dashboard-url
-                                         :display-text " GitHub (g)"
-                                         :url "https://github.com/lem-project/lem"
+                                         :display-text " GitHub (g)"
+                                         :url "https://github.com/Yuri-Albuquerque/yeditor"
                                          :item-attribute 'document-header3-attribute
                                          :bottom-margin 2)))))
     (setf dashboard-items
@@ -111,8 +109,8 @@
                                        :messages footer-messages))))
     (set-dashboard dashboard-items)))
 
-(define-key *dashboard-mode-keymap* "s" 'open-lem-docs)
-(define-key *dashboard-mode-keymap* "g" 'open-lem-github)
+(define-key *dashboard-mode-keymap* "s" 'open-yeditor-docs)
+(define-key *dashboard-mode-keymap* "g" 'open-yeditor-github)
 (define-key *dashboard-mode-keymap* "r" 'dashboard-move-to-recent-projects)
 (define-key *dashboard-mode-keymap* "f" 'dashboard-move-to-recent-files)
 (define-key *dashboard-mode-keymap* "l" 'lem-lisp-mode/internal:lisp-scratch)

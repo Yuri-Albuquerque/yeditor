@@ -121,7 +121,7 @@ See scripts/build-ncurses.lisp or scripts/build-sdl2.lisp"
     (uiop:println *version*)
     (return-from launch))
 
-  (log:info "Starting Lem")
+  (log:info "Starting Yeditor")
 
   (cond (*in-the-editor*
          (apply-args args))

@@ -1054,10 +1054,18 @@ Each header window is set to full display width and its preferred height."
   (balance-windows))
 
 (defun update-on-display-resized ()
-  (lem-if:resize-display-before (implementation))
-  (adjust-all-window-size)
-  (clear-screens-of-window-list)
-  (redraw-display))
+  ;; The SDL event loop can deliver :size-changed / :display-changed
+  ;; events while the editor thread is still bootstrapping the first
+  ;; frame: the frame already exists but its window tree / current
+  ;; window are not built until setup-frame-windows runs.  Skip window
+  ;; relayout in that window; a pending redisplay will be handled by
+  ;; the editor loop once setup has finished.
+  (when (and (current-frame)
+             (frame-window-tree (current-frame)))
+    (lem-if:resize-display-before (implementation))
+    (adjust-all-window-size)
+    (clear-screens-of-window-list)
+    (redraw-display)))
 
 (defun covered-with-floating-window-p (window x y)
   (let ((x (+ x (window-x window)))
