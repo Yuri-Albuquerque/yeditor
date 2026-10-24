@@ -1,4 +1,5 @@
 (ql:quickload :lem-sdl2)
+(ql:quickload :lem-terminal)
 
 (lem:init-at-build-time)
 
