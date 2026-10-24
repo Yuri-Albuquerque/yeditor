@@ -5,6 +5,7 @@
 (defpackage :yeditor-enterprise/forge
   (:use :cl :lem :yeditor-context)
   (:import-from :yeditor-components/models #:provider-generate)
+  (:import-from :yeditor-components/palette #:*palette-actions*)
   (:export :forge-component
            :check-component-source
            :forge-rejected
@@ -29,7 +30,7 @@
 
 (defparameter *forge-directory* (merge-pathnames ".yeditor/components/" (user-homedir-pathname)))
 (defparameter *max-component-bytes* 16384)
-(defparameter *reversibility-rounds* 5)
+(defparameter *reversibility-rounds* 100)
 
 (define-condition forge-rejected (error)
   ((reason :initarg :reason :reader forge-rejected-reason))
@@ -87,10 +88,28 @@
 (defun operator-allowed-p (symbol)
   (member symbol *allowed-operators*))
 
+(defun check-lambda-list (arguments)
+  "Generated callbacks use required arguments and an optional final &REST only."
+  (unless (alexandria:proper-list-p arguments) (reject "invalid lambda list"))
+  (labels ((variable-p (symbol)
+             (and (symbolp symbol) symbol (not (keywordp symbol))
+                  (not (eq symbol t))
+                  (plusp (length (symbol-name symbol)))
+                  (not (char= #\& (char (symbol-name symbol) 0))))))
+    (loop :for tail :on arguments
+          :for argument := (car tail)
+          :do (cond ((eq argument '&rest)
+                     (unless (and (= 2 (length tail)) (variable-p (second tail)))
+                       (reject "invalid &rest lambda list"))
+                     (return))
+                    ((not (variable-p argument))
+                     (reject "unsupported lambda argument ~S" argument))))))
+
 (defun check-calls (form)
   "Walk FORM; reject any call whose operator is not allowed, and any raw install-effect
    without an :undo-thunk."
   (when (consp form)
+    (unless (alexandria:proper-list-p form) (reject "improper or circular code form"))
     (let ((head (first form)))
       (cond ((eq head (quote quote)) nil)
             ((eq head (quote function))
@@ -100,6 +119,7 @@
                    (unless (operator-allowed-p target)
                      (reject "calls ~S, which is not allowed" target)))))
             ((eq head (quote lambda))
+             (check-lambda-list (second form))
              (mapc (function check-calls) (cddr form)))
             ((member head (list (quote let) (quote let*)))
              (dolist (binding (second form))
@@ -120,28 +140,54 @@
   "Read SOURCE into the sandbox package with *read-eval* off; returns the single form."
   (when (> (length source) *max-component-bytes*)
     (reject "~D characters exceeds the ~D limit" (length source) *max-component-bytes*))
+  (when (> (length (flexi-streams:string-to-octets source :external-format :utf-8))
+           *max-component-bytes*)
+    (reject "UTF-8 source exceeds the ~D byte limit" *max-component-bytes*))
   (let ((forms (handler-case
                    (let ((*read-eval* nil)
-                         (*package* (find-package :yeditor-forge-sandbox)))
+                         (*package* (find-package :yeditor-forge-sandbox))
+                         (*readtable* (copy-readtable nil)))
                      (with-input-from-string (in source)
                        (loop :for form := (read in nil in) :until (eq form in) :collect form)))
                  (error (e) (reject "unreadable source: ~A" e)))))
     (unless (= (length forms) 1)
       (reject "expected exactly one form, got ~D" (length forms)))
     (let ((form (first forms)))
-      (unless (and (consp form) (eq (first form) (quote define-component)) (symbolp (second form)))
+      (unless (and (alexandria:proper-list-p form) (consp form)
+                   (eq (first form) (quote define-component)) (symbolp (second form)))
         (reject "the form must be (define-component NAME ...)"))
+      (let ((name (second form)))
+        (unless (and (eq (symbol-package name) (find-package :yeditor-forge-sandbox))
+                     (plusp (length (symbol-name name)))
+                     (every (lambda (char) (or (alphanumericp char) (find char "-_")))
+                            (symbol-name name)))
+          (reject "component name must be a local identifier, not a path or foreign symbol")))
       form)))
 
 (defun check-component-source (source)
-  "Static checks; returns the define-component form or signals forge-rejected."
-  (let ((form (read-component-source source)))
-    (loop :for (key value) :on (cddr form) :by (function cddr)
-          :do (unless (member key (list :version :author :install :config-spec))
-                (reject "unsupported option ~S" key))
-              (check-calls value))
-    (unless (getf (cddr form) :install)
-      (reject "no :install function"))
+  "Validate the SDK schema before evaluating any generated code."
+  (let* ((form (read-component-source source)) (options (cddr form)) (seen nil))
+    (unless (and (alexandria:proper-list-p options) (evenp (length options)))
+      (reject "malformed component options"))
+    (loop :for (key value) :on options :by #'cddr
+          :do (when (member key seen) (reject "duplicate option ~S" key))
+              (push key seen)
+              (case key
+                ((:version :author)
+                 (unless (stringp value) (reject "~S must be a literal string" key)))
+                (:config-spec
+                 (unless (or (literal-value-p value)
+                             (and (alexandria:proper-list-p value) (consp value)
+                                  (eq (first value) 'quote) (= 2 (length value))))
+                   (reject "config-spec must be literal data")))
+                (:install
+                 (let ((function (if (and (consp value) (eq (first value) 'function))
+                                     (second value) value)))
+                   (unless (and (consp function) (eq (first function) 'lambda))
+                     (reject "install must be a lambda"))
+                   (check-calls value)))
+                (otherwise (reject "unsupported option ~S" key))))
+    (unless (getf options :install) (reject "no :install function"))
     form))
 
 ;;; Reversibility test
@@ -193,44 +239,80 @@ Request: ~A")
           (subseq trimmed start (max start end)))
         trimmed)))
 
+(defun save-forged-source (source path)
+  "Create a new source file; remove a partial file if writing or closing fails."
+  (ensure-directories-exist path)
+  (let ((created nil) (saved nil))
+    (unwind-protect
+         (progn
+           (with-open-file (out path :direction :output :if-exists :error)
+             (setf created t)
+             (write-string source out)
+             (terpri out))
+           (setf saved t))
+      (when (and created (not saved)) (delete-file path)))))
+
 (defun forge-component (request provider &key (promote t))
   "Generate, check, test and promote a component for REQUEST using PROVIDER.
    Returns a plist :status (:promoted or :discarded) :name :path :reason :source."
-  (let* ((source (strip-fences (provider-generate provider (format nil *forge-prompt* request))))
-         (name nil))
+  (forge-source (provider-generate provider (format nil *forge-prompt* request)) :promote promote))
+
+(defun forge-source (generated-source &key (promote t))
+  "Validate generated source and evaluate it only on the editor thread."
+  (let* ((source (strip-fences generated-source))
+         (name nil)
+         (created nil))
     (handler-case
         (let ((form (check-component-source source)))
           (setf name (second form))
           (when (gethash name *component-registry*)
             (reject "a component named ~A already exists" name))
           (eval form)
+          (setf created t)
           (unless (reversible-p name)
             (reject "the editor state was not restored after uninstalling"))
           (let ((path (merge-pathnames (format nil "~(~A~).lisp" (symbol-name name)) *forge-directory*)))
-            (when promote
-              (ensure-directories-exist path)
-              (with-open-file (out path :direction :output :if-exists :supersede)
-                (write-string source out)
-                (terpri out)))
+            (when promote (save-forged-source source path))
             (list :status :promoted :name name :path (and promote path) :source source)))
       (forge-rejected (e)
-        (when (and name (gethash name *component-registry*))
+        (when (and created name (gethash name *component-registry*))
           (ignore-errors (uninstall-component name))
           (unregister-component name))
-        (list :status :discarded :name name :reason (forge-rejected-reason e) :source source)))))
+        (list :status :discarded :name name :reason (forge-rejected-reason e) :source source))
+      (error (e)
+        (when (and created name (gethash name *component-registry*))
+          (uninstall-component name)
+          (unregister-component name))
+        (list :status :discarded :name name :reason (princ-to-string e) :source source)))))
+
+(defun forge-in-background (request provider success)
+  "Generate off the UI thread, then validate/promote and report on the UI thread."
+  (bt2:make-thread
+   (lambda ()
+     (handler-case
+         (let ((source (provider-generate provider (format nil *forge-prompt* request))))
+           (send-event (lambda () (funcall success (forge-source source)))))
+       (error (condition)
+         (send-event (lambda () (message "Forge generation failed: ~A" condition))))))
+   :name "yeditor-forge-generation"))
 
 (define-command yeditor-forge (request) ((:string "Forge a component: "))
-  "Generate a reversible editor component from a request, test it and promote it."
+  "Generate a component asynchronously, then validate and promote it on the UI thread."
   (let ((provider (or yeditor-components/ai:*default-provider*
                       (editor-error "No AI provider configured"))))
-    (let ((result (forge-component request provider)))
-      (if (eq (getf result :status) :promoted)
-          (message "Forged ~(~A~) (saved to ~A); M-x toggle it via the component list"
-                   (getf result :name) (getf result :path))
-          (message "Forge discarded the component: ~A" (getf result :reason))))))
+    (forge-in-background
+     request provider
+     (lambda (result)
+       (if (eq (getf result :status) :promoted)
+           (message "Component created: ~(~A~)" (getf result :name))
+           (message "Forge discarded the component: ~A" (getf result :reason)))))))
 
 (define-component le-forge
   :version "0.1.0"
   :install (lambda (comp ctx)
              (declare (ignore ctx))
-             (list (yeditor-effects:install-keybinding comp *global-keymap* "C-c a f" (quote yeditor-forge)))))
+             (list (yeditor-effects:install-variable
+                    comp '*palette-actions*
+                    (acons "Create component..." (lambda () (call-command 'yeditor-forge nil))
+                           *palette-actions*))
+                   (yeditor-effects:install-keybinding comp *global-keymap* "C-c a f" (quote yeditor-forge)))))
