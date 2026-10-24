@@ -711,6 +711,8 @@
    :set-font-name
    :set-font-size
    :set-frame-color)
+  (:export :indentation-guides :indentation-guide-attribute :indentation-guide-step)
+
   ;; color-theme.lisp
   (:export
    :color-theme-names

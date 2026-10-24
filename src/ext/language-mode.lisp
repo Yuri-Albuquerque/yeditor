@@ -633,3 +633,7 @@ nothing to fold."
                              (or root-uri-patterns
                                  (list (lambda (name) (string= name ".git")))))
       directory))
+
+(defmethod lem:indentation-guide-step ((mode language-mode) buffer)
+  (declare (ignore mode))
+  (variable-value 'indent-size :default buffer))

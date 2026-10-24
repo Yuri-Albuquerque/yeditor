@@ -2,6 +2,28 @@
 
 (defvar *active-modes*)
 
+(define-editor-variable indentation-guides t
+  "Show light gray vertical guides in the leading whitespace of code buffers.")
+
+(define-attribute indentation-guide-attribute
+  (t :foreground "#b0b0b0"))
+
+(defgeneric indentation-guide-step (mode buffer)
+  (:documentation "Indentation columns per guide for MODE, or NIL to omit guides.")
+  (:method (mode buffer) (declare (ignore mode buffer)) nil))
+
+(defun add-indentation-guides (string attributes step)
+  (let ((indent (or (position-if-not (lambda (char) (char= char #\Space)) string)
+                    (length string))))
+    (if (and (integerp step) (plusp step) (>= indent step))
+        (let ((display (copy-seq string)))
+          (loop :for column :from 0 :below indent :by step
+                :do (setf (char display column) #\BOX_DRAWINGS_LIGHT_VERTICAL
+                          attributes (overlay-attributes attributes column (1+ column)
+                                                         'indentation-guide-attribute)))
+          (values display attributes))
+        (values string attributes))))
+
 (defstruct virtual-item
   "a display-only string fragment injected at a character position within a logical line."
   ;; 0-based position in the line's string where this fragment is inserted
@@ -398,6 +420,10 @@ several folds that each hide arbitrary character ranges across multiple buffer l
               (setf virtual-items
                     (stable-sort (nreverse virtual-items) #'< :key #'virtual-item-charpos))
               (setf (values string attributes) (expand-tab string attributes tab-width))
+              (when (and (not splice-ops) (variable-value 'indentation-guides :default point))
+                (let ((step (some (lambda (mode) (indentation-guide-step mode (point-buffer point)))
+                                  active-modes)))
+                  (setf (values string attributes) (add-indentation-guides string attributes step))))
               (let ((charpos (point-charpos point)))
                 (when (< 0 charpos)
                   (psetf string (subseq string charpos)
@@ -627,3 +653,10 @@ VIRTUAL-ITEMS arrive in draw order (from `create-logical-line')."
 
 (defmacro do-logical-line ((logical-line window) &body body)
   `(call-do-logical-line ,window (lambda (,logical-line) ,@body)))
+
+(define-command toggle-indentation-guides () ()
+  "Toggle display-only vertical indentation guides in code buffers."
+  (setf (variable-value 'indentation-guides :global)
+        (not (variable-value 'indentation-guides :global)))
+  (dolist (window (window-list)) (need-to-redraw window))
+  (redraw-display :force t))
