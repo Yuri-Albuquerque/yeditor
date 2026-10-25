@@ -148,7 +148,9 @@
       (fresh-line stream)
       (alexandria:switch ((gethash "type" value) :test #'string-match)
         ("result"
-         (lem/interactive-mode:stop-loading session))
+         (lem/interactive-mode:stop-loading session)
+         (when (gethash "is_error" value)
+           (write-line (or (gethash "result" value) "Claude Code request failed.") stream)))
         ('("assistant" "user")
          (dolist (content (gethash "content" (gethash "message" value)))
            (alexandria:switch ((gethash "type" content) :test #'string=)
@@ -173,7 +175,8 @@
   (debug-log (with-output-to-string (out)
                (yason:encode value out)
                (terpri out)))
-  (update-session-id session (gethash "session_id" value))
+  (alexandria:when-let (id (gethash "session_id" value))
+    (update-session-id session id))
   (render-claude-code-message session value))
 
 (defmethod lem/interactive-mode:execute-input (session (mode claude-code-query-mode) input)
@@ -185,8 +188,9 @@
                  (send-event (lambda ()
                                (handle-response session value))))
      :error-callback (lambda (e)
-                       (lem/interactive-mode:stop-loading session)
-                       (error e))
+                       (send-event (lambda ()
+                                     (lem/interactive-mode:stop-loading session)
+                                     (message "Claude Code: ~A" e))))
      :options (claude-code:make-options
                :resume (session-id session)
                :permission-mode "acceptEdits"))))

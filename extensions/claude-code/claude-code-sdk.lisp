@@ -3,10 +3,13 @@
 (uiop:define-package :lem-claude-code/claude-code-sdk
   (:use :cl
         :alexandria)
-  (:export :make-options
+  (:export :*claude-binary*
+           :make-options
            :query
            :receive))
 (in-package :lem-claude-code/claude-code-sdk)
+
+(defparameter *claude-binary* "claude" "Path to the Claude Code CLI executable.")
 
 (defstruct (claude-code-options (:constructor make-options))
   allowed-tools
@@ -29,7 +32,7 @@
   (with-output-to-string (out) (funcall encode object out)))
 
 (defun construct-command (prompt options)
-  `("claude"
+  `(,*claude-binary*
     "--output-format" "stream-json"
     "--verbose"
     "--print" ,prompt
@@ -76,46 +79,47 @@
   process
   thread)
 
-(defun receive-message (process)
-  (check-type process async-process::process)
-  (let ((buffer ""))
-    (loop
-      (let ((data (async-process:process-receive-output process)))
-        (unless data
-          (return (values buffer nil)))
-        (setf buffer (concatenate 'string buffer data))
-        (handler-case (yason:parse buffer)
-          (error ()
-            ;; If there is a parse error, the input is incomplete.
-            )
-          (:no-error (value &rest *)
-            (return (values value t)))))
-      (sleep 0.1)
-      :while (async-process:process-alive-p process))))
-
 (defun query (prompt &key (options (make-options)) callback error-callback)
-  (let* ((process
-           (async-process:create-process
-            (construct-command prompt options))))
-    (make-session
-     :process process
-     :thread (bt2:make-thread
-              (lambda ()
-                (handler-case
-                    (loop
-                      :do (multiple-value-bind (value success) (receive-message process)
-                            (unless success
-                              (error "claude code is exit: ~A" value))
-                            (when callback
-                              (funcall callback value))
-                            (when (equal "result" (gethash "type" value))
-                              (return)))
-                      :while (async-process:process-alive-p process))
-                  (error (e)
-                    (if error-callback
-                        (funcall error-callback e)
-                        (error e)))))
-              :name "Claude Code thread"))))
+  "Read newline-delimited CLI events on a worker, retaining every event in a batch."
+  (let ((session (make-session))
+        (command (construct-command prompt options)))
+    (setf (session-thread session)
+          (bt2:make-thread
+           (lambda ()
+             (handler-case
+                 (let* ((process (uiop:launch-program command :directory (claude-code-options-cwd options)
+                                                              :input nil :output :stream :error-output :stream))
+                        (stderr "")
+                        (completed nil)
+                        (error-reader nil))
+                   (setf (session-process session) process)
+                   (unwind-protect
+                        (progn
+                          (setf error-reader
+                                (bt2:make-thread
+                                 (lambda ()
+                                   (with-open-stream (stream (uiop:process-info-error-output process))
+                                     (setf stderr (uiop:slurp-stream-string stream))))))
+                          (with-open-stream (stream (uiop:process-info-output process))
+                            (loop :for line := (read-line stream nil)
+                                  :while line
+                                  :unless (zerop (length line))
+                                    :do (let ((value (yason:parse line)))
+                                          (when (equal "result" (gethash "type" value))
+                                            (setf completed t))
+                                          (when callback (funcall callback value)))))
+                          (let ((code (uiop:wait-process process)))
+                            (bt2:join-thread error-reader)
+                            (unless (zerop code)
+                              (error "Claude exited (~D): ~A" code stderr))
+                            (unless completed (error "Claude ended without a result: ~A" stderr))))
+                     (when (uiop:process-alive-p process) (uiop:terminate-process process :urgent t))
+                     (uiop:wait-process process)
+                     (when error-reader (bt2:join-thread error-reader))))
+               (error (condition)
+                 (when error-callback (funcall error-callback condition)))))
+           :name "Claude Code thread"))
+    session))
 
 ;; example
 (eval-when ()

@@ -1,5 +1,7 @@
 (ql:quickload :lem-webview)
 
-(sb-ext:save-lisp-and-die "lem-client"
+(ensure-directories-exist "bin/")
+
+(sb-ext:save-lisp-and-die "bin/yeditor-client"
                           :toplevel #'lem-webview:webview-main
                           :executable t)

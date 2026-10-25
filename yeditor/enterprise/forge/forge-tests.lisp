@@ -95,3 +95,108 @@
         "a component whose undo leaves a buffer behind fails the reversibility test")
     (mapc #'lem:kill-buffer *leaked*)
     (unregister-component 'irreversible-probe)))
+
+(deftest rejected-duplicate-preserves-the-existing-component
+  (lem-fake-interface:with-fake-interface ()
+    (let* ((source "(define-component duplicate-forge :install (lambda (comp ctx) (declare (ignore comp ctx)) (list)))")
+           (form (check-component-source source))
+           (name (second form)))
+      (eval form)
+      (install-component name)
+      (let ((entry (gethash name *component-registry*)))
+        (unwind-protect
+             (let ((result (forge source)))
+               (ok (eq :discarded (getf result :status)))
+               (ok (eq entry (gethash name *component-registry*)))
+               (ok (eq :active (getf entry :status))))
+          (when (gethash name *component-registry*)
+            (uninstall-component name) (unregister-component name)))))))
+
+(deftest reject-hidden-code-in-lambda-lists
+  (ok (signals
+       (check-component-source
+        "(define-component hidden-code :install (lambda (comp ctx &aux (x (delete-file \"never-run\"))) (list)))")
+       'forge-rejected)))
+
+(deftest component-names-cannot-be-file-paths
+  (dolist (source '("(define-component |../escape| :install (lambda (comp ctx) (list)))"
+                    "(define-component cl:car :install (lambda (comp ctx) (list)))"))
+    (ok (signals (check-component-source source) 'forge-rejected))))
+
+(deftest metadata-is-data-and-promotion-never-overwrites
+  (ok (signals
+       (check-component-source
+        "(define-component bad-metadata :version (install-variable 'x '*x* t) :install (lambda (comp ctx) (list)))")
+       'forge-rejected))
+  (lem-fake-interface:with-fake-interface ()
+    (let* ((directory (temp-dir))
+           (path (merge-pathnames "forge-demo.lisp" directory)))
+      (ensure-directories-exist path)
+      (with-open-file (out path :direction :output) (write-string "existing user source" out))
+      (unwind-protect
+           (let ((result (forge *valid* :directory directory)))
+             (ok (eq :discarded (getf result :status)))
+             (ok (string= "existing user source" (uiop:read-file-string path)))
+             (ok (null (gethash (getf result :name) *component-registry*))))
+        (uiop:delete-directory-tree directory :validate t)))))
+
+(defclass thread-probe (canned)
+  ((ui-thread :initarg :ui-thread :reader ui-thread)
+   (generated-off-ui :initform nil :accessor generated-off-ui)))
+
+(defmethod yeditor-components/models:provider-generate ((provider thread-probe) prompt &key model system on-chunk)
+  (declare (ignore prompt model system on-chunk))
+  (setf (generated-off-ui provider) (not (eq (ui-thread provider) (bt2:current-thread))))
+  (reply provider))
+
+(deftest generation-is-async-and-promotion-runs-on-ui
+  (lem-fake-interface:with-fake-interface ()
+    (let* ((*forge-directory* (temp-dir))
+           (ui (bt2:current-thread))
+           (provider (make-instance 'thread-probe :ui-thread ui :reply *valid*))
+           (result nil) (callback-on-ui nil))
+      (unwind-protect
+           (progn
+             (yeditor-enterprise/forge::forge-in-background
+              "fixture" provider
+              (lambda (value) (setf result value callback-on-ui (eq ui (bt2:current-thread)))))
+             (ok (loop :repeat 500 :thereis result :do (lem:receive-event 0.01)))
+             (ok (generated-off-ui provider))
+             (ok callback-on-ui)
+             (ok (eq :promoted (getf result :status))))
+        (when (and result (gethash (getf result :name) *component-registry*))
+          (uninstall-component (getf result :name)) (unregister-component (getf result :name)))
+        (uiop:delete-directory-tree *forge-directory* :validate t :if-does-not-exist :ignore)))))
+
+(deftest http-llm-promotes-valid-source-and-discards-invalid-source
+  (lem-fake-interface:with-fake-interface ()
+    (let* ((process (uiop:launch-program
+                     (list "python3" (namestring (asdf:system-relative-pathname
+                                                 "yeditor-components" "test-data/fake-ai-server.py")))
+                     :output :stream))
+           (line (read-line (uiop:process-info-output process)))
+           (provider (make-instance 'yeditor-components/models:ollama-provider
+                                   :base-url (format nil "http://127.0.0.1:~A" (subseq line (1+ (position #\Space line))))))
+           (*forge-directory* (temp-dir)) (valid nil))
+      (unwind-protect
+           (progn
+             (setf valid (forge-component "FORGE_FIXTURE_VALID" provider))
+             (ok (eq :promoted (getf valid :status)))
+             (ok (probe-file (getf valid :path)))
+             (let ((invalid (forge-component "FORGE_FIXTURE_INVALID" provider)))
+               (ok (eq :discarded (getf invalid :status)))
+               (ok (search "without an inverse" (getf invalid :reason)))))
+        (when (and valid (gethash (getf valid :name) *component-registry*))
+          (uninstall-component (getf valid :name)) (unregister-component (getf valid :name)))
+        (uiop:terminate-process process :urgent t)
+        (uiop:wait-process process)
+        (close (uiop:process-info-output process))
+        (uiop:delete-directory-tree *forge-directory* :validate t :if-does-not-exist :ignore)))))
+
+(deftest forge-palette-restores-100-times
+  (let ((before yeditor-components/palette:*palette-actions*))
+    (dotimes (i 100)
+      (install-component 'le-forge)
+      (ok (assoc "Create component..." yeditor-components/palette:*palette-actions* :test #'equal))
+      (uninstall-component 'le-forge)
+      (ok (eq before yeditor-components/palette:*palette-actions*)))))

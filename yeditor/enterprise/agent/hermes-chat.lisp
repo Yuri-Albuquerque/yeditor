@@ -16,7 +16,8 @@
                 #:appendf #:when-let)
   (:import-from :split-sequence
                 #:split-sequence)
-  (:export :le-hermes-chat
+  (:export :hermes-agent
+           :le-hermes-chat
            :yeditor-hermes-chat-toggle
            :yeditor-hermes-chat-send
            :yeditor-hermes-chat-focus
@@ -262,6 +263,12 @@ result in the chat panel."
           (setf (buffer-value buffer 'greeted) t)
           (chat-insert buffer "Hermes Agent chat. Type after '> ' and press Return to send. C-c C-k closes, C-c C-e returns to the editor.")
           (chat-redraw-prompt buffer)))))
+
+(define-command hermes-agent () ()
+  "Open and focus the Hermes Agent chat panel."
+  (install-component 'le-hermes-chat)
+  (unless (hermes-chat-active-p) (yeditor-hermes-chat-toggle))
+  (yeditor-hermes-chat-focus))
 
 (define-component le-hermes-chat
   :version "0.1.0"

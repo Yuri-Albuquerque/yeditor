@@ -56,31 +56,31 @@ fi
 # `mv lem.app Lem.app` is a no-op (same path) and `rm -rf bin/Lem.app`
 # would delete the bundle we just built. Force a case change by going
 # through a uniquely-named intermediate.
-mv bin/lem.app bin/__lem_renaming__.app
-mv bin/__lem_renaming__.app bin/Lem.app
-mv bin/Lem.app/Contents/MacOS/lem bin/Lem.app/Contents/MacOS/__lem_renaming__
-mv bin/Lem.app/Contents/MacOS/__lem_renaming__ bin/Lem.app/Contents/MacOS/Lem
-PLIST="bin/Lem.app/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleName Lem"        "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Lem" "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable Lem"  "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleIconFile Lem"    "$PLIST"
+mv bin/lem.app bin/__yeditor_renaming__.app
+mv bin/__yeditor_renaming__.app bin/Yeditor.app
+mv bin/Yeditor.app/Contents/MacOS/lem bin/Yeditor.app/Contents/MacOS/__yeditor_renaming__
+mv bin/Yeditor.app/Contents/MacOS/__yeditor_renaming__ bin/Yeditor.app/Contents/MacOS/Yeditor
+PLIST="bin/Yeditor.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleName Yeditor"        "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Yeditor" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable Yeditor"  "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIconFile Yeditor"    "$PLIST"
 
 # アイコン（.icns for macOS dock/taskbar icon, .png as fallback）
 # Generate the .icns first so a missing icon is a hard failure rather than
-# silently shipping an iconless .app. The bundle is now Lem.app, and
-# CFBundleIconFile is "Lem", so the icon must be named Lem.icns.
+# silently shipping an iconless .app. The bundle is now Yeditor.app, and
+# CFBundleIconFile is "Yeditor", so the icon must be named Yeditor.icns.
 make icns
-cp resources/lem.icns bin/Lem.app/Contents/Resources/Lem.icns
-cp resources/lem.png  bin/Lem.app/Contents/Resources/Lem.png || true
+cp resources/yeditor.icns bin/Yeditor.app/Contents/Resources/Yeditor.icns
+cp resources/yeditor.png  bin/Yeditor.app/Contents/Resources/Yeditor.png || true
 
 # ===== 2) OpenSSL を同梱し、参照先を @loader_path 化 =====
-APP="bin/Lem.app"
-EXE="$APP/Contents/MacOS/Lem"
+APP="bin/Yeditor.app"
+EXE="$APP/Contents/MacOS/Yeditor"
 LIBDIR="$APP/Contents/MacOS"
 
 if [[ ! -x "$EXE" ]]; then
-  echo "error: executable not found: $EXE" >&2
+  echo "error: executable not found: $EXE (Yeditor.app)" >&2
   exit 1
 fi
 
@@ -135,15 +135,15 @@ fi
 
 # ===== 5) 配布用 ZIP =====
 README_PATH="bin/README.md"
-echo "The following command must be executed for Lem.app to start.
+echo "The following command must be executed for Yeditor.app to start.
 ```
-xattr -dr com.apple.quarantine Lem.app/
+xattr -dr com.apple.quarantine Yeditor.app/
 ```
 " > "$README_PATH"
 
-rm -f lem-macos.zip
+rm -f yeditor-macos.zip
 (
   cd bin
-  zip -r ../lem-macos.zip "Lem.app" "README.md"
+  zip -r ../yeditor-macos.zip "Yeditor.app" "README.md"
 )
-echo "Packaged: $(pwd)/lem-macos.zip"
+echo "Packaged: $(pwd)/yeditor-macos.zip"

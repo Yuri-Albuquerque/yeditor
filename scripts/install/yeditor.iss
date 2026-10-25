@@ -1,4 +1,4 @@
-; Inno Setup script for Lem.
+; Inno Setup script for Yeditor.
 ; Compiled by scripts\win-deploy.ps1 (which passes /DAppVersion=<version>);
 ; expects the deploy-op output in ..\..\bin\.
 
@@ -6,22 +6,22 @@
 #define AppVersion "0.0.0"
 #endif
 
-#define AppName "Lem"
+#define AppName "Yeditor"
 #define AppExe "lem.exe"
 
 [Setup]
 AppId={{7E7DA1D6-40F5-4E4D-9E2A-2C7C2C1E6D5B}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=lem-project
-AppPublisherURL=https://lem-project.github.io/
-AppSupportURL=https://github.com/lem-project/lem
+AppPublisher=Yuri-Albuquerque
+AppPublisherURL=https://github.com/Yuri-Albuquerque/yeditor
+AppSupportURL=https://github.com/Yuri-Albuquerque/yeditor
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
-SetupIconFile=lem.ico
+SetupIconFile=yeditor.ico
 LicenseFile=..\..\LICENCE
-OutputBaseFilename=Lem-{#AppVersion}-setup
+OutputBaseFilename=Yeditor-{#AppVersion}-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -37,7 +37,7 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked
-Name: "addtopath"; Description: "Add Lem to PATH"; Flags: unchecked
+Name: "addtopath"; Description: "Add Yeditor to PATH"; Flags: unchecked
 
 [Files]
 Source: "..\..\bin\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion

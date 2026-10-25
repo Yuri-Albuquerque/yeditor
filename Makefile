@@ -7,24 +7,28 @@ ncurses:
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-ncurses.lisp
+	mv bin/yeditor bin/yeditor-ncurses
 
 # The minimal-build does not include any of the extensions, and uses the ncurses frontend
 minimal-build:
 	qlot install
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-minimal-build.lisp
+	mv bin/yeditor bin/yeditor-minimal
 
 sdl2:
 	qlot install
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-sdl2.lisp
+	mv bin/yeditor bin/yeditor-sdl2
 
 sdl2-ncurses:
 	qlot install
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-sdl2-ncurses.lisp
+	mv bin/yeditor bin/yeditor-sdl2-ncurses
 
 server:
 	qlot install
@@ -41,12 +45,14 @@ webview:
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-webview.lisp
+	mv bin/yeditor bin/yeditor-webview
 
 webview-ncurses:
 	qlot install
 	-$(MAKE) terminal-lib
 	$(LISP) --load .qlot/setup.lisp \
 		--load scripts/build-webview-ncurses.lisp
+	mv bin/yeditor bin/yeditor-webview-ncurses
 
 lem: webview
 
@@ -66,13 +72,13 @@ terminal-lib:
 	$(LISP) --load scripts/build-terminal.lisp
 
 install-bin:
-	install -m 755 lem $(PREFIX)/bin
+	install -m 755 bin/yeditor $(PREFIX)/bin
 
 # TODO: on the fly edit lem.desktop depends on $(PREFIX)
 install-desktop:
-	install -m 644 scripts/install/lem.svg /usr/share/icons/hicolor/scalable/apps/
+	install -m 644 scripts/install/yeditor.svg /usr/share/icons/hicolor/scalable/apps/
 	gtk-update-icon-cache /usr/share/icons/hicolor
-	install -m 644 scripts/install/lem-$(VARIANT).desktop /usr/share/applications/lem.desktop
+	install -m 644 scripts/install/yeditor-$(VARIANT).desktop /usr/share/applications/yeditor.desktop
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -80,9 +86,9 @@ install: install-bin
 else
 install: install-bin install-desktop
 endif
-	@echo "+--------------------------------+"
-	@echo "|   Lem installation complete!   |"
-	@echo "+--------------------------------+"
+	@echo "+------------------------------------+"
+	@echo "|   Yeditor installation complete!   |"
+	@echo "+------------------------------------+"
 
 # Install targets
 install-sdl2:
@@ -176,23 +182,21 @@ lint:
 	.qlot/bin/sblint extensions/yaml-mode/lem-yaml-mode.asd
 	.qlot/bin/sblint extensions/ruby-mode/lem-ruby-mode.asd
 
-# Generate macOS .icns from resources/lem.png. The source PNG is currently
-# 256x256, which is the largest entry we can include without upscaling.
-# Replace lem.png with a 1024x1024 source to also produce 256@2x/512/512@2x
-# entries for Retina-quality dock and Finder icons.
-resources/lem.icns: resources/lem.png
-	mkdir -p resources/lem.iconset
-	sips -z 16 16     $< --out resources/lem.iconset/icon_16x16.png
-	sips -z 32 32     $< --out resources/lem.iconset/icon_16x16@2x.png
-	sips -z 32 32     $< --out resources/lem.iconset/icon_32x32.png
-	sips -z 64 64     $< --out resources/lem.iconset/icon_32x32@2x.png
-	sips -z 128 128   $< --out resources/lem.iconset/icon_128x128.png
-	sips -z 256 256   $< --out resources/lem.iconset/icon_128x128@2x.png
-	sips -z 256 256   $< --out resources/lem.iconset/icon_256x256.png
-	iconutil -c icns resources/lem.iconset -o $@
-	rm -rf resources/lem.iconset
+# Generate macOS .icns from resources/yeditor.png (1024x1024 source,
+# producing Retina-quality 256@2x/512/512@2x entries for dock and Finder).
+resources/yeditor.icns: resources/yeditor.png
+	mkdir -p resources/yeditor.iconset
+	sips -z 16 16     $< --out resources/yeditor.iconset/icon_16x16.png
+	sips -z 32 32     $< --out resources/yeditor.iconset/icon_16x16@2x.png
+	sips -z 32 32     $< --out resources/yeditor.iconset/icon_32x32.png
+	sips -z 64 64     $< --out resources/yeditor.iconset/icon_32x32@2x.png
+	sips -z 128 128   $< --out resources/yeditor.iconset/icon_128x128.png
+	sips -z 256 256   $< --out resources/yeditor.iconset/icon_128x128@2x.png
+	sips -z 256 256   $< --out resources/yeditor.iconset/icon_256x256.png
+	iconutil -c icns resources/yeditor.iconset -o $@
+	rm -rf resources/yeditor.iconset
 
-icns: resources/lem.icns
+icns: resources/yeditor.icns
 
 AppImage:
 	docker buildx build -f docker/Dockerfile-AppImage --progress=plain --target artifact --output type=local,dest=./artifacts .

@@ -90,3 +90,10 @@ With a positive universal argument, use relative line numbers. Also obey the glo
              'line-numbers-attribute
              (lem-core::char-type #\space)))
       nil))
+
+;;; Factory default: line numbers on at startup (file buffers only,
+;;; per the compute-left-display-area guard).  Passing t calls
+;;; enable-minor-mode, so it never toggles a user-disabled state off.
+(lem:add-hook lem:*after-init-hook*
+              (lambda ()
+                (line-numbers-mode t)))

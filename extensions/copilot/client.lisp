@@ -108,7 +108,7 @@
   (request-async client
                  "setEditorInfo"
                  (hash "editorInfo"
-                       (hash "name" "Lem"
+                       (hash "name" "Yeditor"
                              "version" (lem:get-version-string))
                        "editorPluginInfo" (hash "name" "lem-copilot"
                                                 "version" "0.0"))

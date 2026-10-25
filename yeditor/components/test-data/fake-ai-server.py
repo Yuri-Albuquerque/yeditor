@@ -65,7 +65,12 @@ class Handler(BaseHTTPRequestHandler):
         self.count()
         req = self.body()
         if self.path == "/api/generate":
-            chunks = ["Hello", " from", " " + req.get("model", "?")]
+            if "FORGE_FIXTURE_INVALID" in req.get("prompt", ""):
+                chunks = ["(define-component forge-http-bad :install (lambda (comp ctx) (list (yeditor-tx:install-effect comp :x (lambda () nil)))))"]
+            elif "FORGE_FIXTURE_VALID" in req.get("prompt", ""):
+                chunks = ["(define-component forge-http-good :install (lambda (comp ctx) (declare (ignore ctx)) (list (install-variable comp '*forge-http-flag* :on))))"]
+            else:
+                chunks = ["Hello", " from", " " + req.get("model", "?")]
             lines = [json.dumps({"response": c, "done": False}) + "\n" for c in chunks]
             lines.append(json.dumps({"response": "", "done": True}) + "\n")
             self.stream("application/x-ndjson", lines)
