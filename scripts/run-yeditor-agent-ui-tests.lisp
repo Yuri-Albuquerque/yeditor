@@ -8,6 +8,8 @@
   (dolist (test '(yeditor-agent-ui-tests::indentation-guides-only-change-display
                   yeditor-agent-ui-tests::indentation-guides-follow-code-mode-and-toggle
                   yeditor-enterprise-tests/hermes-chat::test-hermes-chat-dispatcher-is-reversible
+                  yeditor-enterprise-tests/hermes-chat::test-hermes-stream-json-parsing-inserts-and-captures-session
+                  yeditor-enterprise-tests/hermes-chat::test-hermes-query-renders-response-into-buffer
                   yeditor-agent-ui-tests::hermes-agent-opens-and-refocuses
                   yeditor-agent-ui-tests::claude-cli-reads-batched-events-and-reports-stderr))
     (unless (rove:run-test test) (uiop:quit 1))))
