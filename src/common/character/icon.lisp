@@ -44,7 +44,7 @@
       (getf (icon-plist icon) key))))
 
 (register-icon "folder" #x1f4c1)
-(register-icon "lock" #x1F512)
+(register-icon "lock" #\[)
 (register-icon "right-pointing-triangle" #x25B8)
 (register-icon "down-pointing-triangle" #x25BE)
 (register-icon "bullet-point" #x2022)
