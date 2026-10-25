@@ -5,9 +5,10 @@
 (defsystem "yeditor-enterprise-tests"
   :description "Yeditor Enterprise tests"
   :license "LicenseRef-Yeditor-Enterprise"
-  :depends-on ("yeditor-enterprise" "lem-fake-interface" "rove")
+  :depends-on ("yeditor-enterprise" "lem-fake-interface" "rove" "lem-claude-code")
   :components ((:file "agent/workers-tests")
                (:file "forge/forge-tests")
                (:file "journal/journal-tests")
                (:file "agent/hermes-chat-tests")
-               (:file "agent/tools-tests")))
+               (:file "agent/tools-tests")
+               (:file "agent/agent-ui-tests")))
