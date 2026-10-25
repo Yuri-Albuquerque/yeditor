@@ -47,9 +47,7 @@ here at install time; without it an intent is queued and reported to message.")
                        :test (function string-equal)))
         :return id))
 
-;; No emoji in prompt strings: SDL2_ttf's official dist cannot render color
-;; emoji glyphs (zero-width error), which aborts the prompt rendering.
-(define-command yeditor-director-intent (prompt) ((:string "Intent for the agent: "))
+(define-command yeditor-director-intent (prompt) ((:string "🎯 Intent for the agent: "))
   "Submit one natural-language intent to the agent bus. The agent then operates
 the editor through the le-mcp editor tools; the HUD mounts so you can review
 and approve (C-c C-a) or revert (C-c C-k) everything it did."
