@@ -14,8 +14,6 @@
                 #:record-agent-event)
   (:import-from :alexandria
                 #:appendf #:when-let)
-  (:import-from :split-sequence
-                #:split-sequence)
   (:export :hermes-agent
            :le-hermes-chat
            :yeditor-hermes-chat-toggle
@@ -154,41 +152,35 @@ back to the last editor buffer without closing the panel.")
                  (chat-insert buffer (format nil "(hermes exited with code ~A)" exit)))))))))
 
 (defun run-hermes-query (buffer query)
-  "Run one hermes chat turn synchronously, streaming output into BUFFER."
+  "Run one hermes chat turn, streaming output into BUFFER as it arrives."
   (let ((dir (hermes-chat-directory))
         (args (list "chat" "-q" query "--oneshot" "-Q" "--format" "stream-json")))
     (when *hermes-chat-session*
       (setf args (append args (list "--resume" *hermes-chat-session*))))
     (uiop:with-current-directory (dir)
-      (multiple-value-bind (out err code)
-          (run-hermes-capture args)
-        (declare (ignore code))
-        ;; Buffer mutation must happen on the UI thread: dispatch it via
-        ;; send-event rather than touching the buffer from this worker thread.
-        (send-event
-         (lambda ()
-           (dolist (line (split-string-lines out))
-             (parse-stream-json-line line buffer))
-           (when (and err (plusp (length (string-trim '(#\Space #\Newline) err))))
-             (chat-insert buffer (format nil "(stderr) ~A" (string-trim '(#\Newline) err))))))))))
-
-(defun split-string-lines (string)
-  (and string
-       (plusp (length string))
-       (split-sequence #\newline string)))
-
-(defun run-hermes-capture (args)
-  "Run the hermes CLI capturing stdout/stderr; returns (values out err code)."
-  (let ((out nil) (err nil))
-    (let* ((process (uiop:launch-program (cons *hermes-binary* args)
-                                         :output :stream
-                                         :error-output :stream))
-           (out-thread (bt2:make-thread (lambda () (setf out (uiop:slurp-stream-string (uiop:process-info-output process))))))
-           (err-thread (bt2:make-thread (lambda () (setf err (uiop:slurp-stream-string (uiop:process-info-error-output process)))))))
-      (let ((code (uiop:wait-process process)))
-        (bt2:join-thread out-thread)
-        (bt2:join-thread err-thread)
-        (values out err code)))))
+      (let* ((process (uiop:launch-program (cons *hermes-binary* args)
+                                           :output :stream
+                                           :error-output :stream))
+             (out (uiop:process-info-output process))
+             (err (uiop:process-info-error-output process))
+             ;; Drain stderr on a background thread so a full stderr pipe can
+             ;; never block the stdout streaming loop below.
+             (err-thread (bt2:make-thread (lambda () (uiop:slurp-stream-string err)))))
+        ;; Stream stdout line-by-line, dispatching each event to the UI thread
+        ;; as soon as it arrives instead of buffering the whole run.
+        (loop :for line := (read-line out nil)
+              :while line
+              :do (let ((l line))
+                    (send-event (lambda () (parse-stream-json-line l buffer)))))
+        (uiop:wait-process process)
+        (let ((stderr-text (bt2:join-thread err-thread)))
+          (when (and stderr-text
+                     (plusp (length (string-trim '(#\Space #\Newline) stderr-text))))
+            (send-event
+             (lambda ()
+               (chat-insert buffer
+                            (format nil "(stderr) ~A"
+                                    (string-trim '(#\Newline) stderr-text)))))))))))
 
 (defun run-hermes-query-async (buffer query)
   "Run hermes in a thread so the editor stays responsive."
