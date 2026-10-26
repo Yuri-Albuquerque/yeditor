@@ -6,7 +6,10 @@
 ;;;; Each message runs `hermes chat -q <text> --format stream-json` in the
 ;;;; editor's working directory (project root preferred), streaming events into
 ;;;; the chat buffer, and resumes the same session on follow-ups so Hermes keeps
-;;;; its context. Tool calls ("Running: <cmd> ..." lines) are shown dimmed.
+;;;; its context. Layout: every message stacks above a '> ' prompt that is
+;;;; always the buffer's last line (so you can keep typing while the agent
+;;;; works); the '...' thinking marker is replaced by the first output of the
+;;;; turn; agent text is labeled [hermes]; tool call lines are dimmed.
 
 (defpackage :yeditor-enterprise/hermes-chat
   (:use :cl :lem :yeditor-context :yeditor-effects)
@@ -30,6 +33,10 @@
 
 (defparameter *hermes-binary* "hermes"
   "The Hermes Agent CLI binary.")
+
+(lem:define-attribute hermes-tool-attribute
+  (:light :foreground "#7c6f64")
+  (:dark :foreground "#a89984"))
 
 (defparameter *hermes-chat-session* nil
   "Hermes session id to resume on the next message, or nil.")
@@ -68,33 +75,61 @@ back to the last editor buffer without closing the panel.")
   (setf (variable-value 'line-wrap :buffer (current-buffer)) t))
 
 (defun chat-insert (buffer text &key (attribute nil))
-  (with-buffer-read-only buffer nil
-    (let ((point (buffer-end-point buffer)))
-      (insert-string point (format nil "~A~%" text) :attribute attribute))))
+  "Insert one chat message line above the prompt (or at the buffer end when
+there is no prompt yet, e.g. the greeting)."
+  (when (and text (plusp (length text)))
+    (with-buffer-read-only buffer nil
+      (alexandria:if-let (out (chat-output-point buffer))
+          (insert-string out (format nil "~A~%" text) :attribute attribute)
+          (let ((point (buffer-end-point buffer)))
+            (insert-string point (format nil "~A~%" text) :attribute attribute))))))
 
 (defun chat-insert-running (buffer text)
-  "Insert an activity line (tool call) with a 'dimmed' look."
-  (chat-insert buffer (format nil "  | ~A" text)))
+  "Insert an activity line (tool call) with the dimmed tool attribute."
+  (chat-insert buffer (format nil "  | ~A" text)
+               :attribute 'hermes-tool-attribute))
 
-;;;; input line handling: the prompt is a fixed last line "> " the user types
-;;;; before; send cuts from the prompt marker to end of buffer.
+;;;; prompt line handling: the '> ' prompt is always the last line of the
+;;;; buffer. Every chat message is inserted at chat-output-point (the start of
+;;;; the prompt line), which pushes the prompt down while keeping it last, so
+;;;; the user can keep typing after '> ' while the agent streams its output.
 
 (defun chat-prompt-point (buffer)
+  "Point right after the '> ' prompt, where the user types, or nil."
   (buffer-value buffer 'prompt-marker))
 
 (defun (setf chat-prompt-point) (point buffer)
   (setf (buffer-value buffer 'prompt-marker) point))
 
+(defun chat-output-point (buffer)
+  "Point at the start of the prompt line where chat messages are inserted.
+Both markers are live :left-inserting points: inserts at the output point
+keep the prompt line (and any in-progress typing) intact below them."
+  (buffer-value buffer 'output-marker))
+
+(defun (setf chat-output-point) (point buffer)
+  (setf (buffer-value buffer 'output-marker) point))
+
 (defun setup-prompt (buffer)
+  "Add a '> ' prompt as the last line and record the live input/output points.
+The input marker is :right-inserting (typing at its position leaves it before
+the text), while the output marker is :left-inserting (inserting there leaves
+it after the inserted line, so messages land in chronological order)."
+  (alexandria:when-let (old (chat-prompt-point buffer))
+    (delete-point old))
+  (alexandria:when-let (old (chat-output-point buffer))
+    (delete-point old))
   (let ((point (buffer-end-point buffer)))
+    (unless (start-line-p point)
+      (insert-character point #\newline))
     (insert-string point "> ")
-    (with-point ((p point))
-      (buffer-start p)
-      (character-offset (buffer-end p) -2)
-      (setf (chat-prompt-point buffer) p))))
+    (let ((prompt (copy-point point :left-inserting)))
+      (line-start prompt)
+      (setf (chat-prompt-point buffer) (copy-point point :right-inserting)
+            (chat-output-point buffer) prompt))))
 
 (defun chat-input-text (buffer)
-  "Return the typed input sitting after the '> ' prompt, or nil."
+  "Return the typed input after the '> ' prompt, or nil."
   (alexandria:when-let ((marker (chat-prompt-point buffer)))
     (string-trim '(#\Space #\Tab #\Newline)
                  (points-to-string marker (buffer-end-point buffer)))))
@@ -102,23 +137,48 @@ back to the last editor buffer without closing the panel.")
 (defun chat-clear-input (buffer)
   (let ((marker (chat-prompt-point buffer)))
     (when marker
-      (with-point ((s marker)
-                   (e (buffer-end-point buffer)))
-        (delete-between-points s e)))))
+      (with-buffer-read-only buffer nil
+        (with-point ((s marker)
+                     (e (buffer-end-point buffer)))
+          (delete-between-points s e))))))
 
 (defun chat-redraw-prompt (buffer)
-  "Ensure a fresh prompt line at the end of the buffer."
-  (with-buffer-read-only buffer nil
-    (let ((end (buffer-end-point buffer)))
-      (unless (or (start-line-p end) (buffer-start-p end))
-        (insert-string end (format nil "")))
-      (unless (start-line-p (buffer-end-point buffer))
-        (insert-character (buffer-end-point buffer) #\newline))
-      (setup-prompt buffer))))
+  "Ensure a '> ' prompt line exists. The prompt, once set, is never removed
+and slides along as messages are inserted above it, so this is only a real
+setup for fresh buffers."
+  (unless (and (chat-prompt-point buffer)
+               (chat-output-point buffer))
+    (setup-prompt buffer)))
 
-(defun chat-start-line-p (point)
-  (line-start point)
-  t)
+(defun chat-start-pending (buffer)
+  "Show the '...' turn-in-progress line above the prompt and record a point
+at its start, so the first output of the turn can replace the line. While a
+turn is already pending this does nothing (one marker at a time)."
+  (unless (buffer-value buffer 'pending-marker)
+    (with-buffer-read-only buffer nil
+      (alexandria:if-let (out (chat-output-point buffer))
+          ;; a :right-inserting copy taken at the insertion position does not
+          ;; move when the text is inserted there, so PENDING stays at the
+          ;; start of the '...' line while the prompt slides down.
+          (let ((pending (copy-point out :right-inserting)))
+            (insert-string out (format nil "...~%"))
+            (setf (buffer-value buffer 'pending-marker) pending))
+          (let ((point (buffer-end-point buffer)))
+            (insert-string point (format nil "...~%")))))))
+
+(defun chat-clear-pending (buffer)
+  "Remove the '...' turn-in-progress line: the first real output of the turn
+takes its place. No-op when the line was removed meanwhile."
+  (alexandria:when-let (pending (buffer-value buffer 'pending-marker))
+    (setf (buffer-value buffer 'pending-marker) nil)
+    (when (alive-point-p pending)
+      (with-buffer-read-only buffer nil
+        (with-point ((s pending)
+                     (e pending))
+          (line-end e)
+          (when (string= (points-to-string s e) "...")
+            (when (line-offset e 1)
+              (delete-between-points s e))))))))
 
 ;;;; hermes process
 
@@ -138,8 +198,13 @@ back to the last editor buffer without closing the panel.")
                (when (and sid (plusp (length sid)))
                  (setf *hermes-chat-session* sid))))
             ((string= type "text")
-             (chat-insert buffer (gethash "text" event)))
+             (let ((text (gethash "text" event)))
+               (when (and text (plusp (length text)))
+                 ;; the first real output replaces the '...' marker
+                 (chat-clear-pending buffer)
+                 (chat-insert buffer (format nil "[hermes] ~A" text)))))
             ((string= type "tool")
+             (chat-clear-pending buffer)
              (chat-insert-running buffer (or (gethash "summary" event)
                                              (gethash "name" event)
                                              "tool call")))
@@ -147,7 +212,17 @@ back to the last editor buffer without closing the panel.")
              (let ((sid (gethash "session_id" event)))
                (when (and sid (plusp (length sid)))
                  (setf *hermes-chat-session* sid)))
-             (let ((exit (gethash "exit_code" event)))
+             (let ((text (gethash "text" event))
+                   (exit (gethash "exit_code" event)))
+               ;; a turn that emitted no text events ends silently here:
+               ;; replace the thinking marker with the final text the result
+               ;; event carries, if any.
+               (when (buffer-value buffer 'pending-marker)
+                 (chat-clear-pending buffer)
+                 (if (and text (plusp (length text)))
+                     (chat-insert buffer (format nil "[hermes] ~A" text))
+                     (unless (and exit (not (zerop exit)))
+                       (chat-insert buffer "(no output)"))))
                (unless (and exit (zerop exit))
                  (chat-insert buffer (format nil "(hermes exited with code ~A)" exit)))))))))
 
@@ -189,6 +264,7 @@ back to the last editor buffer without closing the panel.")
      (handler-case (run-hermes-query buffer query)
        (error (e)
          (send-event (lambda ()
+                       (chat-clear-pending buffer)
                        (chat-insert buffer (format nil "[error] ~A" e))))))
      (send-event (lambda ()
                    (with-buffer-read-only buffer nil
@@ -202,8 +278,9 @@ back to the last editor buffer without closing the panel.")
 (defun submit-hermes-message (text)
   "Send TEXT to hermes and stream the response into the chat buffer."
   (let ((buffer (ensure-hermes-chat-buffer)))
+    (chat-redraw-prompt buffer)
     (chat-insert buffer (format nil "[you] ~A" text) :attribute 'lem:modeline-name-attribute)
-    (chat-insert buffer "...")
+    (chat-start-pending buffer)
     (run-hermes-query-async buffer text)))
 
 (defun submit-external-intent (prompt)
@@ -217,8 +294,9 @@ result in the chat panel."
     (make-bottomside-window buffer :height 14)
     (unless (buffer-value buffer 'greeted)
       (setf (buffer-value buffer 'greeted) t))
+    (chat-redraw-prompt buffer)
     (chat-insert buffer (format nil "[director] ~A" prompt) :attribute 'lem:modeline-name-attribute)
-    (chat-insert buffer "...")
+    (chat-start-pending buffer)
     (run-hermes-query-async buffer full)))
 
 (define-command yeditor-hermes-chat-send () ()
@@ -227,7 +305,10 @@ result in the chat panel."
         (text (chat-input-text (current-buffer))))
     (when (plusp (length text))
       (chat-clear-input buffer)
-      (chat-redraw-prompt buffer)
+      ;; no prompt redraw on send: the '> ' line the user typed on slides down
+      ;; as the message and the streamed output are inserted above the prompt,
+      ;; so a fresh '> ' is always ready at the very bottom. Redrawing here
+      ;; would stack an empty prompt line above every message.
       (submit-hermes-message text))))
 
 (defun focus-last-editor-buffer ()

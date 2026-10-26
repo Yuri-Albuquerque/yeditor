@@ -70,3 +70,86 @@
             "response text is rendered into the buffer")
         (ok (string= "local-abc123" yeditor-enterprise/hermes-chat::*hermes-chat-session*)
             "session id captured after the turn")))))
+
+(defun hermes-test-lines (buffer)
+  (ppcre:split "\\n" (lem:buffer-text buffer)))
+
+(defun hermes-test-prompt-line-p (line)
+  (and (plusp (length line)) (char= (char line 0) #\>)))
+
+(deftest test-hermes-chat-lines-stack-above-the-prompt
+  (lem-fake-interface:with-fake-interface ()
+    (let ((buffer (lem:make-buffer "*hermes-layout-test*")))
+      (yeditor-enterprise/hermes-chat::chat-insert buffer "greeting")
+      (yeditor-enterprise/hermes-chat::chat-redraw-prompt buffer)
+      (yeditor-enterprise/hermes-chat::chat-insert buffer "[you] hi")
+      ;; the user may keep typing at the prompt while the agent streams
+      (lem:insert-string (lem:buffer-end-point buffer) "next question")
+      (yeditor-enterprise/hermes-chat::chat-insert buffer "[hermes] hello")
+      (let ((lines (hermes-test-lines buffer)))
+        (ok (equal (first (last lines)) "> next question")
+            "the prompt stays the last line")
+        (ok (= 1 (count-if #'hermes-test-prompt-line-p lines))
+            "no duplicate prompt lines stack up")
+        (ok (member "[you] hi" lines :test (function equal))
+            "user messages are labeled")
+        (ok (member "[hermes] hello" lines :test (function equal))
+            "agent messages are labeled"))
+      (ok (equal "next question"
+                 (yeditor-enterprise/hermes-chat::chat-input-text buffer))
+          "user typing survives streamed inserts"))))
+
+(deftest test-hermes-chat-input-reads-text-after-the-prompt
+  (lem-fake-interface:with-fake-interface ()
+    (let ((buffer (lem:make-buffer "*hermes-input-test*")))
+      (yeditor-enterprise/hermes-chat::chat-redraw-prompt buffer)
+      (lem:insert-string (lem:buffer-end-point buffer) "hello world")
+      (ok (equal "hello world"
+                 (yeditor-enterprise/hermes-chat::chat-input-text buffer))
+          "input text does not include the '> ' prefix")
+      (yeditor-enterprise/hermes-chat::chat-clear-input buffer)
+      (ok (equal (list "> ")
+                 (last (hermes-test-lines buffer)))
+          "the '> ' prompt itself survives clearing"))))
+
+(deftest test-hermes-chat-turn-output-replaces-thinking-marker
+  (let ((yeditor-enterprise/hermes-chat::*hermes-chat-session* nil))
+    (lem-fake-interface:with-fake-interface ()
+      (let ((buffer (lem:make-buffer "*hermes-pending-test*")))
+        (flet ((parse (line)
+                 (yeditor-enterprise/hermes-chat::parse-stream-json-line line buffer)))
+          (yeditor-enterprise/hermes-chat::chat-redraw-prompt buffer)
+          (yeditor-enterprise/hermes-chat::chat-insert buffer "[you] hi")
+          (yeditor-enterprise/hermes-chat::chat-start-pending buffer)
+          ;; tool activity is real output: the first event replaces the marker
+          (parse "{\"type\":\"tool\",\"summary\":\"running grep\"}")
+          (let ((lines (hermes-test-lines buffer)))
+            (ok (member "  | running grep" lines :test (function equal))
+                "tool call lines are shown dimmed with the pipe prefix")
+            (ok (not (member "..." lines :test (function equal)))
+                "the thinking marker is replaced by the first output"))
+          (parse "{\"type\":\"text\",\"text\":\"hello agent\"}")
+          (ok (member "[hermes] hello agent"
+                      (hermes-test-lines buffer) :test (function equal))
+              "agent text is labeled [hermes]")
+          ;; a turn that emits no text events: the result's final text is used
+          (yeditor-enterprise/hermes-chat::chat-insert buffer "[you] again")
+          (yeditor-enterprise/hermes-chat::chat-start-pending buffer)
+          (parse "{\"type\":\"result\",\"session_id\":\"local-x\",\"exit_code\":0,\"text\":\"final answer\"}")
+          (let ((lines (hermes-test-lines buffer)))
+            (ok (member "[hermes] final answer" lines :test (function equal))
+                "result-only turns render the final text")
+            (ok (not (member "..." lines :test (function equal)))
+                "no stale thinking markers"))
+          (ok (string= "local-x" yeditor-enterprise/hermes-chat::*hermes-chat-session*)
+              "session id captured")
+          ;; a failed result with an empty session id must not clobber
+          ;; the session, and still reports the failure to the user.
+          (yeditor-enterprise/hermes-chat::chat-start-pending buffer)
+          (parse "{\"type\":\"result\",\"session_id\":\"\",\"exit_code\":7,\"text\":\"\"}")
+          (ok (search "(hermes exited with code 7)" (lem:buffer-text buffer))
+              "nonzero exit codes are reported")
+          (ok (string= "local-x" yeditor-enterprise/hermes-chat::*hermes-chat-session*)
+              "empty result session_id does not clobber the session")
+          (ok (not (member "..." (hermes-test-lines buffer) :test (function equal)))
+              "the thinking marker is cleared on failure too"))))))
