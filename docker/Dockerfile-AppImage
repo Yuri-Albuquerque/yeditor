@@ -51,7 +51,7 @@ RUN qlot exec sbcl --eval '(ql:quickload :lem)' --eval '(asdf:make :lem)'
 RUN bash -ex docker/make_appdir.sh
 
 RUN mkdir -p /artifacts
-RUN mv /app/Lem-x86_64.AppImage /artifacts/
+RUN mv /app/Yeditor-x86_64.AppImage /artifacts/
 
 FROM scratch AS artifact
 COPY --from=build /artifacts/ /
