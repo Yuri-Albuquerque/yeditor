@@ -48,6 +48,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install icon conversion tool
+        run: sudo apt-get update -qq && sudo apt-get install -y imagemagick
       - name: Check shell syntax and packaging launchers
         run: |
           bash -n scripts/macos-deploy.bash docker/make_appdir.sh

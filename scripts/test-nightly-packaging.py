@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import struct
 import tempfile
 import unittest
 
@@ -37,6 +38,8 @@ class NightlyPackagingTests(unittest.TestCase):
             subprocess.run(["bash", str(REPO / "docker/make_appdir.sh")],
                            cwd=root, env=env, check=True, capture_output=True, text=True)
             self.assertTrue((root / "Yeditor-x86_64.AppImage").is_file())
+            png = (root / "AppDir/yeditor.png").read_bytes()
+            self.assertEqual(struct.unpack(">II", png[16:24]), (256, 256))
             appdir = root / "AppDir"
             args = ["--help", "a file with spaces.py"]
             result = subprocess.run([str(appdir / "AppRun"), *args],

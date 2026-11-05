@@ -34,7 +34,8 @@ fi
 
 # .desktop / icon（Exec を run-yeditor に）
 sed -E 's/^Exec=.*/Exec=run-yeditor %F/' resources/yeditor.desktop > AppDir/yeditor.desktop
-cp resources/yeditor.png AppDir/yeditor.png
+# linuxdeploy accepts icons up to 512px; keep the 1024px source for macOS.
+convert resources/yeditor.png -resize 256x256 AppDir/yeditor.png
 
 # ★ --executable は渡さない！（SBCL 実体を触らせない）
 "${LINUXDEPLOY:-/usr/local/bin/linuxdeploy-x86_64.AppImage}" \
