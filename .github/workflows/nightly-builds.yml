@@ -9,6 +9,7 @@ on:
       - 'docker/Dockerfile-AppImage'
       - 'docker/make_appdir.sh'
       - 'scripts/macos-deploy.bash'
+      - 'scripts/test-nightly-packaging.py'
       - 'scripts/macos-sbcl.bash'
       - 'scripts/build-terminal.lisp'
       - 'extensions/terminal/terminal.c'
@@ -42,6 +43,18 @@ env:
   NIGHTLY_TAG: nightly-latest
 
 jobs:
+  packaging-contract:
+    name: Packaging contract regressions
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install icon conversion tool
+        run: sudo apt-get update -qq && sudo apt-get install -y imagemagick
+      - name: Check shell syntax and packaging launchers
+        run: |
+          bash -n scripts/macos-deploy.bash docker/make_appdir.sh
+          python3 scripts/test-nightly-packaging.py
+
   linux:
     name: Nightly Build (Linux)
     if: github.event_name == 'schedule' || github.event_name == 'pull_request' || inputs.linux == true
@@ -89,18 +102,18 @@ jobs:
         run: |
           make AppImage
           mkdir -p dist
-          cp artifacts/Lem-x86_64.AppImage dist/Lem-x86_64.AppImage
+          cp artifacts/Yeditor-x86_64.AppImage dist/Yeditor-x86_64.AppImage
 
       - name: Smoke-test AppImage
         if: steps.diff.outputs.skip != 'true'
-        run: APPIMAGE_EXTRACT_AND_RUN=1 dist/Lem-x86_64.AppImage --help
+        run: APPIMAGE_EXTRACT_AND_RUN=1 dist/Yeditor-x86_64.AppImage --help
 
       - name: Upload artifact (Linux)
         if: steps.diff.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: lem-linux
-          path: dist/Lem-x86_64.AppImage
+          name: yeditor-linux
+          path: dist/Yeditor-x86_64.AppImage
           if-no-files-found: error
 
       - name: Flag built
@@ -159,19 +172,19 @@ jobs:
           prefix="$(brew --prefix sbcl)"
           SBCL_HOME="$prefix/lib/sbcl" LEM_REAL_SBCL="$prefix/libexec/bin/sbcl" bash tests/terminal/test-macos-sbcl.sh
 
-      - name: Build Lem executable
+      - name: Build Yeditor application
         if: steps.diff.outputs.skip != 'true'
         run: |
           scripts/macos-deploy.bash
-          test -f lem-macos.zip
-          bin/Lem.app/Contents/MacOS/Lem --help
+          test -f yeditor-macos.zip
+          bin/Yeditor.app/Contents/MacOS/Yeditor --help
 
       - name: Upload artifact (macOS)
         if: steps.diff.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: lem-macos
-          path: lem-macos.zip
+          name: yeditor-macos
+          path: yeditor-macos.zip
           if-no-files-found: error
 
       - name: Flag built
@@ -206,7 +219,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: lem-*
+          pattern: yeditor-*
           path: download
           merge-multiple: true
 
@@ -215,8 +228,8 @@ jobs:
         shell: bash
         run: |
           files=""
-          [ -f download/Lem-x86_64.AppImage ] && files="$files"$'\n'"download/Lem-x86_64.AppImage"
-          [ -f download/lem-macos.zip ] && files="$files"$'\n'"download/lem-macos.zip"
+          [ -f download/Yeditor-x86_64.AppImage ] && files="$files"$'\n'"download/Yeditor-x86_64.AppImage"
+          [ -f download/yeditor-macos.zip ] && files="$files"$'\n'"download/yeditor-macos.zip"
           files="${files#"${files%%[!$'\n']*}"}"
           echo "files<<EOF" >> "$GITHUB_OUTPUT"
           echo "$files" >> "$GITHUB_OUTPUT"
