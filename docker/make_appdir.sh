@@ -4,14 +4,14 @@ export APPIMAGE_EXTRACT_AND_RUN=1
 mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/libexec \
          AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
 
-# SBCL dump 実体
-cp bin/yeditor AppDir/usr/libexec/yeditor.real
+# ASDF's deploy system is still named lem; keep that internal build output.
+cp bin/lem AppDir/usr/libexec/yeditor.real
 chmod +x AppDir/usr/libexec/yeditor.real
 
 # 起動ラッパー（シェル）: 実体を起動するだけ（環境変数の設定は AppRun で行う）
 cat > AppDir/usr/bin/run-yeditor <<'EOF'
 #!/usr/bin/env bash
-APPDIR="${APPDIR:-$(dirname "$(readlink -f "$0")")/..}"
+APPDIR="${APPDIR:-$(dirname "$(readlink -f "$0")")/../..}"
 exec "$APPDIR/usr/libexec/yeditor.real" "$@"
 EOF
 chmod +x AppDir/usr/bin/run-yeditor
@@ -34,10 +34,11 @@ fi
 
 # .desktop / icon（Exec を run-yeditor に）
 sed -E 's/^Exec=.*/Exec=run-yeditor %F/' resources/yeditor.desktop > AppDir/yeditor.desktop
-cp resources/yeditor.png AppDir/yeditor.png
+# linuxdeploy accepts icons up to 512px; keep the 1024px source for macOS.
+convert resources/yeditor.png -resize 256x256 AppDir/yeditor.png
 
 # ★ --executable は渡さない！（SBCL 実体を触らせない）
-/usr/local/bin/linuxdeploy-x86_64.AppImage \
+"${LINUXDEPLOY:-/usr/local/bin/linuxdeploy-x86_64.AppImage}" \
   --appdir AppDir \
   --desktop-file AppDir/yeditor.desktop \
   --icon-file   AppDir/yeditor.png
@@ -47,7 +48,7 @@ rm -f AppDir/AppRun
 cat > AppDir/AppRun <<'EOF'
 #!/usr/bin/env bash
 set -e
-APPDIR="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
+export APPDIR="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
 
 # AppImage 同梱の .so を優先
 export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -77,4 +78,4 @@ EOF
 chmod +x AppDir/AppRun
 
 # パッケージ化
-/usr/local/bin/appimagetool-x86_64.AppImage AppDir
+"${APPIMAGETOOL:-/usr/local/bin/appimagetool-x86_64.AppImage}" AppDir Yeditor-x86_64.AppImage

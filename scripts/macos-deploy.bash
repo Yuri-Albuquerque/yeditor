@@ -135,11 +135,14 @@ fi
 
 # ===== 5) 配布用 ZIP =====
 README_PATH="bin/README.md"
-echo "The following command must be executed for Yeditor.app to start.
-```
-xattr -dr com.apple.quarantine Yeditor.app/
-```
-" > "$README_PATH"
+cat > "$README_PATH" <<'EOF'
+# Yeditor for macOS
+
+Move Yeditor.app to Applications and open it from Finder or Spotlight.
+This development build is ad hoc signed, not Apple-notarized. If macOS blocks
+the first launch, verify the download's source and use System Settings >
+Privacy & Security > Open Anyway when offered.
+EOF
 
 rm -f yeditor-macos.zip
 (
